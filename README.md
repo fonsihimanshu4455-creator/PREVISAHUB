@@ -10,7 +10,6 @@ Next.js 14 + Tailwind CSS marketing site for **Pre Visa Hub** (Study Abroad Cons
 
 ## Run locally
 ```bash
-cd website
 npm install
 npm run dev
 ```
