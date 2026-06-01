@@ -10,7 +10,7 @@ export default function Footer() {
               <Logo size={50} />
             </div>
             <p className="mt-5 text-sm text-blue-100/70 max-w-md leading-relaxed">
-              Pre Visa Hub is your trusted study abroad consultant — empowering
+              Pre Visa Hub is your trusted study abroad consultants — empowering
               students to achieve global education dreams in USA, Canada,
               Australia, UK and Europe.
             </p>

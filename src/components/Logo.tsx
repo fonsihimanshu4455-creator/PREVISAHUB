@@ -53,7 +53,7 @@ export default function Logo({ size = 56, withText = true, className = "" }: Log
             <span className="text-brand-orange">HUB</span>
           </div>
           <div className="text-[10px] sm:text-xs font-semibold tracking-widest text-slate-600">
-            STUDY ABROAD CONSULTANT
+            STUDY ABROAD CONSULTANTS
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 # Pre Visa Hub — Official Website
 
-Next.js 14 + Tailwind CSS marketing site for **Pre Visa Hub** (Study Abroad Consultant).
+Next.js 14 + Tailwind CSS marketing site for **Pre Visa Hub** (Study Abroad Consultants).
 
 ## Stack
 - Next.js 14 (App Router)

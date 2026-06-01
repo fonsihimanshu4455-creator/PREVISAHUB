@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pre Visa Hub — Study Abroad Consultant | IELTS, PTE & Visa Services",
+  title: "Pre Visa Hub — Study Abroad Consultants | IELTS, PTE & Visa Services",
   description:
-    "Pre Visa Hub is your trusted study abroad consultant for USA, Canada, Australia, UK & Europe. Expert IELTS, PTE coaching and student & tourist visa services.",
+    "Pre Visa Hub is your trusted study abroad consultants for USA, Canada, Australia, UK & Europe. Expert IELTS, PTE coaching and student & tourist visa services.",
   keywords: [
     "Pre Visa Hub",
-    "Study Abroad Consultant",
+    "Study Abroad Consultants",
     "IELTS Coaching",
     "PTE Coaching",
     "Student Visa",
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     "Europe Visa",
   ],
   openGraph: {
-    title: "Pre Visa Hub — Study Abroad Consultant",
+    title: "Pre Visa Hub — Study Abroad Consultants",
     description:
       "Expert IELTS, PTE coaching and visa services for USA, Canada, Australia, UK & Europe.",
     type: "website",

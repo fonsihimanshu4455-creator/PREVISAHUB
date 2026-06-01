@@ -57,7 +57,7 @@ export default function Hero() {
                 PRE<span className="text-brand-orange">·</span>VISA <span className="text-brand-orange">HUB</span>
               </h3>
               <p className="mt-1 text-xs font-bold tracking-[0.2em] text-slate-500">
-                STUDY ABROAD CONSULTANT
+                STUDY ABROAD CONSULTANTS
               </p>
               <div className="mt-6 flex gap-2 flex-wrap justify-center">
                 {["IELTS", "PTE", "Visa", "Admission"].map((t) => (
