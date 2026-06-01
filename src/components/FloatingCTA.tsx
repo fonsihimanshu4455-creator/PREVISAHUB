@@ -1,7 +1,12 @@
-export default function FloatingCTA() {
+import type { Contact } from "@/lib/content-types";
+
+export default function FloatingCTA({ contact }: { contact: Contact }) {
+  const text = encodeURIComponent(
+    "Hi Pre Visa Hub, I'd like to enquire about study abroad services."
+  );
   return (
     <a
-      href="https://wa.me/918950991108?text=Hi%20Pre%20Visa%20Hub%2C%20I%27d%20like%20to%20enquire%20about%20study%20abroad%20services."
+      href={`https://wa.me/${contact.whatsappNumber}?text=${text}`}
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"

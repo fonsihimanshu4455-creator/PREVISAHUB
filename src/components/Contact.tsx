@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import type { Contact as ContactType } from "@/lib/content-types";
 
-export default function Contact() {
+export default function Contact({ contact }: { contact: ContactType }) {
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -15,7 +16,7 @@ export default function Contact() {
     const service = data.get("service");
 
     const text = `Hi Pre Visa Hub, I'd like to enquire.%0A%0AName: ${name}%0APhone: ${phone}%0APreferred Country: ${country}%0AService: ${service}%0AMessage: ${message}`;
-    window.open(`https://wa.me/918950991108?text=${text}`, "_blank");
+    window.open(`https://wa.me/${contact.whatsappNumber}?text=${text}`, "_blank");
     setSubmitted(true);
   };
 
@@ -40,34 +41,32 @@ export default function Contact() {
         </div>
 
         <div className="mt-14 grid lg:grid-cols-5 gap-8">
-          {/* Contact Info */}
           <div className="lg:col-span-2 space-y-4">
             <ContactCard
               icon="📞"
               title="Call Us"
-              value="+91 89509 91108"
-              href="tel:+918950991108"
+              value={contact.phoneDisplay}
+              href={`tel:${contact.phoneRaw}`}
             />
             <ContactCard
               icon="💬"
               title="WhatsApp"
               value="Quick chat with our team"
-              href="https://wa.me/918950991108"
+              href={`https://wa.me/${contact.whatsappNumber}`}
             />
             <ContactCard
               icon="📸"
               title="Instagram"
-              value="@pre.visa.hub_9"
-              href="https://www.instagram.com/pre.visa.hub_9/"
+              value={contact.instagramHandle}
+              href={contact.instagramUrl}
             />
             <ContactCard
               icon="🕒"
               title="Working Hours"
-              value="Mon – Sat • 10 AM – 7 PM"
+              value={contact.workingHours}
             />
           </div>
 
-          {/* Form */}
           <div className="lg:col-span-3 bg-white rounded-3xl shadow-2xl shadow-brand-navy/10 border border-slate-100 p-6 sm:p-8">
             {submitted ? (
               <div className="text-center py-12">

@@ -1,37 +1,6 @@
-const countries = [
-  {
-    name: "USA",
-    flag: "🇺🇸",
-    desc: "World-class universities & global career opportunities.",
-    universities: "4000+",
-  },
-  {
-    name: "Canada",
-    flag: "🇨🇦",
-    desc: "Affordable education with PR pathways post-study.",
-    universities: "100+",
-  },
-  {
-    name: "Australia",
-    flag: "🇦🇺",
-    desc: "High-quality education & post-study work visa benefits.",
-    universities: "43+",
-  },
-  {
-    name: "United Kingdom",
-    flag: "🇬🇧",
-    desc: "Centuries-old prestige with 2-year graduate work visa.",
-    universities: "160+",
-  },
-  {
-    name: "Europe",
-    flag: "🇪🇺",
-    desc: "Germany, France, Ireland & more — many tuition-free options.",
-    universities: "500+",
-  },
-];
+import type { Country } from "@/lib/content-types";
 
-export default function Countries() {
+export default function Countries({ countries }: { countries: Country[] }) {
   return (
     <section
       id="countries"
@@ -60,7 +29,7 @@ export default function Countries() {
         <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {countries.map((c) => (
             <div
-              key={c.name}
+              key={c.id}
               className="group bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-brand-orange/50 hover:bg-white/10 transition-all duration-300 hover:-translate-y-1"
             >
               <div className="text-5xl">{c.flag}</div>

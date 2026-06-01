@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Logo from "./Logo";
+import type { Contact } from "@/lib/content-types";
 
 const links = [
   { href: "#home", label: "Home" },
@@ -11,7 +12,7 @@ const links = [
   { href: "#contact", label: "Contact" },
 ];
 
-export default function Navbar() {
+export default function Navbar({ contact }: { contact: Contact }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -35,10 +36,10 @@ export default function Navbar() {
 
         <div className="hidden lg:flex items-center gap-3">
           <a
-            href="tel:+918950991108"
+            href={`tel:${contact.phoneRaw}`}
             className="text-sm font-semibold text-brand-navy hover:text-brand-orange"
           >
-            +91 89509 91108
+            {contact.phoneDisplay}
           </a>
           <a href="#contact" className="btn-primary !py-2 !px-5">
             Free Consultation
@@ -73,8 +74,8 @@ export default function Navbar() {
                 {l.label}
               </a>
             ))}
-            <a href="tel:+918950991108" className="py-2 text-sm font-semibold text-brand-navy">
-              Call: +91 89509 91108
+            <a href={`tel:${contact.phoneRaw}`} className="py-2 text-sm font-semibold text-brand-navy">
+              Call: {contact.phoneDisplay}
             </a>
             <a href="#contact" onClick={() => setOpen(false)} className="btn-primary">
               Free Consultation

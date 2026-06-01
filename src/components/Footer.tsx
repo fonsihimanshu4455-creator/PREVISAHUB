@@ -1,6 +1,7 @@
 import Logo from "./Logo";
+import type { Contact } from "@/lib/content-types";
 
-export default function Footer() {
+export default function Footer({ contact }: { contact: Contact }) {
   return (
     <footer className="bg-brand-navy-dark text-blue-100">
       <div className="container-x py-14">
@@ -15,9 +16,9 @@ export default function Footer() {
               Australia, UK and Europe.
             </p>
             <div className="mt-6 flex gap-3">
-              <Social href="https://www.instagram.com/pre.visa.hub_9/" label="Instagram" icon="📸" />
-              <Social href="https://wa.me/918950991108" label="WhatsApp" icon="💬" />
-              <Social href="tel:+918950991108" label="Call" icon="📞" />
+              <Social href={contact.instagramUrl} label="Instagram" icon="📸" />
+              <Social href={`https://wa.me/${contact.whatsappNumber}`} label="WhatsApp" icon="💬" />
+              <Social href={`tel:${contact.phoneRaw}`} label="Call" icon="📞" />
             </div>
           </div>
 

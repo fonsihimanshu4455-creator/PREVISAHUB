@@ -1,43 +1,6 @@
-const services = [
-  {
-    icon: "🎓",
-    title: "Student Visa",
-    desc: "Complete student visa guidance for top universities across USA, Canada, Australia, UK & Europe.",
-    color: "from-brand-orange to-orange-400",
-  },
-  {
-    icon: "📘",
-    title: "IELTS Coaching",
-    desc: "Expert IELTS preparation with experienced trainers. Score Band 7+ with our proven methodology.",
-    color: "from-brand-navy to-brand-navy-light",
-  },
-  {
-    icon: "🎯",
-    title: "PTE Coaching",
-    desc: "Result-oriented PTE Academic training with mock tests, personalised feedback & AI scoring.",
-    color: "from-brand-orange to-brand-orange-dark",
-  },
-  {
-    icon: "🌍",
-    title: "Tourist Visa",
-    desc: "Hassle-free tourist visa processing for Schengen, USA, UK, Canada, Australia & more.",
-    color: "from-brand-navy-light to-brand-navy",
-  },
-  {
-    icon: "🏛️",
-    title: "University Admissions",
-    desc: "End-to-end admission assistance — university shortlisting, applications & SOP guidance.",
-    color: "from-brand-orange-dark to-brand-orange",
-  },
-  {
-    icon: "📝",
-    title: "Documentation Help",
-    desc: "Professional help with SOPs, LORs, financial docs and complete visa file preparation.",
-    color: "from-brand-navy to-brand-navy-dark",
-  },
-];
+import type { Service } from "@/lib/content-types";
 
-export default function Services() {
+export default function Services({ services }: { services: Service[] }) {
   return (
     <section id="services" className="py-20 lg:py-28 bg-white">
       <div className="container-x">
@@ -55,7 +18,7 @@ export default function Services() {
         <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((s) => (
             <div
-              key={s.title}
+              key={s.id}
               className="group relative bg-white rounded-2xl p-6 border border-slate-100 hover:border-brand-orange/30 hover:shadow-2xl hover:shadow-brand-orange/10 transition-all duration-300 hover:-translate-y-1"
             >
               <div

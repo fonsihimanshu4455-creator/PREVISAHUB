@@ -1,10 +1,11 @@
-export default function Hero() {
+import type { Hero as HeroType } from "@/lib/content-types";
+
+export default function Hero({ hero }: { hero: HeroType }) {
   return (
     <section
       id="home"
       className="relative overflow-hidden bg-gradient-to-br from-brand-cream via-white to-orange-50"
     >
-      {/* Decorative blobs */}
       <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-brand-orange/20 blur-3xl" />
       <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-brand-navy/20 blur-3xl" />
 
@@ -12,39 +13,34 @@ export default function Hero() {
         <div className="animate-fade-in-up">
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-orange/10 px-4 py-1.5 text-xs font-semibold text-brand-orange-dark">
             <span className="h-2 w-2 rounded-full bg-brand-orange animate-pulse" />
-            Now Enrolling — Free Counselling
+            {hero.badge}
           </div>
           <h1 className="mt-5 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-brand-navy">
-            Your Gateway to{" "}
+            {hero.titlePrefix}{" "}
             <span className="relative inline-block">
-              <span className="relative z-10 text-brand-orange">Study Abroad</span>
+              <span className="relative z-10 text-brand-orange">{hero.titleHighlight}</span>
               <span className="absolute inset-x-0 bottom-1 h-3 bg-brand-orange/20 -z-0" />
             </span>{" "}
-            Success
+            {hero.titleSuffix}
           </h1>
-          <p className="mt-6 text-lg text-slate-600 max-w-xl">
-            Expert IELTS &amp; PTE coaching with end-to-end visa assistance for
-            <span className="font-semibold text-brand-navy"> USA, Canada, Australia, UK </span>
-            and <span className="font-semibold text-brand-navy">Europe</span>. We turn your
-            global education dreams into reality.
-          </p>
+          <p className="mt-6 text-lg text-slate-600 max-w-xl">{hero.description}</p>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
             <a href="#contact" className="btn-primary">
-              Book Free Counselling
+              {hero.primaryCtaText}
               <svg className="ml-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </a>
             <a href="#services" className="btn-secondary">
-              Explore Services
+              {hero.secondaryCtaText}
             </a>
           </div>
 
           <div className="mt-10 grid grid-cols-3 gap-6 max-w-md">
-            <Stat value="5000+" label="Students Placed" />
-            <Stat value="98%" label="Visa Success" />
-            <Stat value="25+" label="Universities" />
+            <Stat value={hero.stat1Value} label={hero.stat1Label} />
+            <Stat value={hero.stat2Value} label={hero.stat2Label} />
+            <Stat value={hero.stat3Value} label={hero.stat3Label} />
           </div>
         </div>
 
@@ -72,7 +68,6 @@ export default function Hero() {
             </div>
           </div>
 
-          {/* Floating cards */}
           <div className="hidden md:block absolute -left-4 top-12 bg-white rounded-2xl shadow-xl p-4 border border-slate-100 animate-float" style={{ animationDelay: "1s" }}>
             <div className="flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-brand-orange/15 flex items-center justify-center text-xl">🎓</div>
