@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SiteContentProvider } from "@/lib/SiteContentContext";
+import ThemeInjector from "@/components/ThemeInjector";
 
 export const metadata: Metadata = {
   title: "Pre Visa Hub — Study Abroad Consultant | IELTS, PTE & Visa Services",
@@ -45,7 +47,12 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <SiteContentProvider>
+          <ThemeInjector />
+          {children}
+        </SiteContentProvider>
+      </body>
     </html>
   );
 }

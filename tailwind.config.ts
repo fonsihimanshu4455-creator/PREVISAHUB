@@ -6,13 +6,15 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          orange: "#E97A2E",
-          "orange-dark": "#C95F1A",
-          "orange-light": "#FFB37A",
-          navy: "#1E3A8A",
-          "navy-dark": "#102558",
-          "navy-light": "#3B5BBF",
-          cream: "#FFF8F1",
+          // Driven by CSS variables so the admin panel can recolour the site
+          // live. Values are "R G B" triplets; the /opacity syntax still works.
+          orange: "rgb(var(--brand-orange) / <alpha-value>)",
+          "orange-dark": "rgb(var(--brand-orange-dark) / <alpha-value>)",
+          "orange-light": "rgb(var(--brand-orange-light) / <alpha-value>)",
+          navy: "rgb(var(--brand-navy) / <alpha-value>)",
+          "navy-dark": "rgb(var(--brand-navy-dark) / <alpha-value>)",
+          "navy-light": "rgb(var(--brand-navy-light) / <alpha-value>)",
+          cream: "rgb(var(--brand-cream) / <alpha-value>)",
         },
       },
       fontFamily: {

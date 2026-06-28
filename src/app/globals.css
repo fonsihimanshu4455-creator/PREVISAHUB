@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Default brand palette as "R G B" triplets (overridable from admin). */
+  --brand-orange: 233 122 46;
+  --brand-orange-dark: 201 95 26;
+  --brand-orange-light: 255 179 122;
+  --brand-navy: 30 58 138;
+  --brand-navy-dark: 16 37 88;
+  --brand-navy-light: 59 91 191;
+  --brand-cream: 255 248 241;
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;

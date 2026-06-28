@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { useContent } from "@/lib/SiteContentContext";
 
 export default function Contact() {
+  const { contact, global } = useContent();
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -14,8 +16,8 @@ export default function Contact() {
     const country = data.get("country");
     const service = data.get("service");
 
-    const text = `Hi Pre Visa Hub, I'd like to enquire.%0A%0AName: ${name}%0APhone: ${phone}%0APreferred Country: ${country}%0AService: ${service}%0AMessage: ${message}`;
-    window.open(`https://wa.me/918950991108?text=${text}`, "_blank");
+    const text = `Hi ${global.brandName}, I'd like to enquire.%0A%0AName: ${name}%0APhone: ${phone}%0APreferred Country: ${country}%0AService: ${service}%0AMessage: ${message}`;
+    window.open(`https://wa.me/${global.whatsapp}?text=${text}`, "_blank");
     setSubmitted(true);
   };
 
@@ -30,41 +32,24 @@ export default function Contact() {
       <div className="container-x relative">
         <div className="text-center max-w-3xl mx-auto">
           <div className="inline-block px-4 py-1 rounded-full bg-brand-orange/10 text-xs font-bold text-brand-orange-dark tracking-widest mb-4">
-            GET IN TOUCH
+            {contact.badge}
           </div>
-          <h2 className="section-title">Start Your Journey Today</h2>
-          <p className="section-subtitle mx-auto">
-            Free counselling session — talk to our expert and find out the best
-            study abroad path for you.
-          </p>
+          <h2 className="section-title">{contact.title}</h2>
+          <p className="section-subtitle mx-auto">{contact.subtitle}</p>
         </div>
 
         <div className="mt-14 grid lg:grid-cols-5 gap-8">
           {/* Contact Info */}
           <div className="lg:col-span-2 space-y-4">
-            <ContactCard
-              icon="📞"
-              title="Call Us"
-              value="+91 89509 91108"
-              href="tel:+918950991108"
-            />
-            <ContactCard
-              icon="💬"
-              title="WhatsApp"
-              value="Quick chat with our team"
-              href="https://wa.me/918950991108"
-            />
-            <ContactCard
-              icon="📸"
-              title="Instagram"
-              value="@pre.visa.hub_9"
-              href="https://www.instagram.com/pre.visa.hub_9/"
-            />
-            <ContactCard
-              icon="🕒"
-              title="Working Hours"
-              value="Mon – Sat • 10 AM – 7 PM"
-            />
+            {contact.info.map((c, i) => (
+              <ContactCard
+                key={i}
+                icon={c.icon}
+                title={c.title}
+                value={c.value}
+                href={c.href || undefined}
+              />
+            ))}
           </div>
 
           {/* Form */}
@@ -89,44 +74,18 @@ export default function Contact() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <h3 className="font-display text-2xl font-bold text-brand-navy">
-                  Book Free Counselling
+                  {contact.formTitle}
                 </h3>
                 <div className="grid sm:grid-cols-2 gap-4">
                   <Input name="name" label="Full Name" placeholder="Your name" required />
                   <Input name="phone" label="Phone" placeholder="+91 …" type="tel" required />
                 </div>
                 <div className="grid sm:grid-cols-2 gap-4">
-                  <Select
-                    name="country"
-                    label="Preferred Country"
-                    options={[
-                      "Select country",
-                      "USA",
-                      "Canada",
-                      "Australia",
-                      "United Kingdom",
-                      "Europe",
-                      "Not sure yet",
-                    ]}
-                  />
-                  <Select
-                    name="service"
-                    label="Service Required"
-                    options={[
-                      "Select service",
-                      "Student Visa",
-                      "Tourist Visa",
-                      "IELTS Coaching",
-                      "PTE Coaching",
-                      "University Admission",
-                      "Other",
-                    ]}
-                  />
+                  <Select name="country" label="Preferred Country" options={contact.countries} />
+                  <Select name="service" label="Service Required" options={contact.services} />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-slate-700">
-                    Message
-                  </label>
+                  <label className="text-sm font-medium text-slate-700">Message</label>
                   <textarea
                     name="message"
                     rows={4}
