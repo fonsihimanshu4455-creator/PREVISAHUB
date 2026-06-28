@@ -1,44 +1,82 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AUTH_KEY, PASSWORD_KEY, DEFAULT_PASSWORD } from "./content";
 
-// Lightweight, client-side admin gate. This is NOT real security — it only
-// keeps casual visitors out of the editor. The whole site is static, so the
-// password lives in the browser. Treat the admin URL as private.
+// Server-backed admin auth. Login sets an httpOnly session cookie, so the admin
+// can log in from any device/browser. Works even before a database is connected
+// (password falls back to the ADMIN_PASSWORD env var or the built-in default).
 export function useAdminAuth() {
   const [authed, setAuthed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [storage, setStorage] = useState(false);
 
   useEffect(() => {
-    setAuthed(localStorage.getItem(AUTH_KEY) === "1");
-    setReady(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/session", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (!cancelled) {
+            setAuthed(Boolean(data.authed));
+            setStorage(Boolean(data.storage));
+          }
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const currentPassword = useCallback(() => {
-    return localStorage.getItem(PASSWORD_KEY) || DEFAULT_PASSWORD;
-  }, []);
-
-  const login = useCallback(
-    (password: string) => {
-      if (password === currentPassword()) {
-        localStorage.setItem(AUTH_KEY, "1");
+  const login = useCallback(async (password: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
         setAuthed(true);
         return true;
       }
       return false;
-    },
-    [currentPassword]
-  );
+    } catch {
+      return false;
+    }
+  }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_KEY);
+  const logout = useCallback(async () => {
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } catch {
+      /* ignore */
+    }
     setAuthed(false);
   }, []);
 
-  const changePassword = useCallback((next: string) => {
-    localStorage.setItem(PASSWORD_KEY, next);
-  }, []);
+  // Returns: "ok" | "no-storage" | "error"
+  const changePassword = useCallback(
+    async (next: string): Promise<"ok" | "no-storage" | "error"> => {
+      try {
+        const res = await fetch("/api/password", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: next }),
+        });
+        if (res.ok) return "ok";
+        if (res.status === 503) return "no-storage";
+        return "error";
+      } catch {
+        return "error";
+      }
+    },
+    []
+  );
 
-  return { authed, ready, login, logout, changePassword };
+  return { authed, ready, storage, login, logout, changePassword };
 }

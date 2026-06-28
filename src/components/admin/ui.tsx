@@ -283,27 +283,38 @@ export function SaveBar({
   onSave,
   savedAt,
 }: {
-  onSave: () => void;
+  onSave: () => void | Promise<boolean | void>;
   savedAt: number;
 }) {
   const [justSaved, setJustSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const save = () => {
-    onSave();
-    setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 2000);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave();
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2500);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="sticky bottom-0 -mx-4 sm:-mx-6 mt-8 border-t border-slate-200 bg-white/95 backdrop-blur px-4 sm:px-6 py-3 flex items-center justify-between">
       <span className="text-sm text-slate-500">
-        {justSaved || (savedAt > 0) ? "✓ Saved — open the website to see changes." : "Unsaved changes"}
+        {saving
+          ? "Saving…"
+          : justSaved || savedAt > 0
+          ? "✓ Saved — changes are live."
+          : "Unsaved changes"}
       </span>
       <button
         onClick={save}
-        className="rounded-full bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-orange-600 transition"
+        disabled={saving}
+        className="rounded-full bg-orange-500 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-orange-600 transition disabled:opacity-60"
       >
-        Save changes
+        {saving ? "Saving…" : "Save changes"}
       </button>
     </div>
   );

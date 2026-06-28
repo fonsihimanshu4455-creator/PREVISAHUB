@@ -436,6 +436,33 @@ export const defaultContent: SiteContent = {
 export const CONTENT_VERSION = 1;
 export const STORAGE_KEY = "previsahub_content_v1";
 export const AUTH_KEY = "previsahub_admin_auth";
-// Default admin password — change it from the admin Settings page.
+// Default admin password — used only until ADMIN_PASSWORD env var or a
+// database-stored password is set.
 export const DEFAULT_PASSWORD = "previsahub123";
 export const PASSWORD_KEY = "previsahub_admin_password";
+
+// Backend (database + auth) keys.
+export const KV_CONTENT_KEY = "previsahub:content";
+export const KV_PASSWORD_KEY = "previsahub:password";
+export const SESSION_COOKIE = "pvh_session";
+
+// Deep-merge stored content over defaults so newly added fields always exist.
+// Lives here (no React) so both server and client can use it.
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+export function mergeDefaults<T>(base: T, stored: unknown): T {
+  if (!isPlainObject(base)) {
+    return stored === undefined ? base : (stored as T);
+  }
+  if (!isPlainObject(stored)) return base;
+  const out: Record<string, unknown> = { ...base };
+  for (const key of Object.keys(base as Record<string, unknown>)) {
+    out[key] = mergeDefaults(
+      (base as Record<string, unknown>)[key],
+      stored[key]
+    );
+  }
+  return out as T;
+}

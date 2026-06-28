@@ -19,9 +19,10 @@ export function useAdminSection<K extends keyof SiteContent>(key: K) {
     }
   }, [ready, initialized, content, key]);
 
-  const commit = useCallback(() => {
-    save({ ...content, [key]: draft });
-    setSavedAt(Date.now());
+  const commit = useCallback(async () => {
+    const ok = await save({ ...content, [key]: draft });
+    if (ok) setSavedAt(Date.now());
+    return ok;
   }, [content, key, draft, save]);
 
   // Shallow patch helper for object sections.
