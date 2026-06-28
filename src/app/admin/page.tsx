@@ -6,7 +6,7 @@ import { adminNav } from "@/lib/adminNav";
 import { useSiteContent } from "@/lib/SiteContentContext";
 
 export default function AdminDashboard() {
-  const { exportJson, importJson, reset } = useSiteContent();
+  const { exportJson, importJson, reset, storage } = useSiteContent();
   const fileRef = useRef<HTMLInputElement>(null);
 
   const download = () => {
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const upload = async (file: File | undefined) => {
     if (!file) return;
     const text = await file.text();
-    if (importJson(text)) {
+    if (await importJson(text)) {
       alert("Content imported successfully ✓");
     } else {
       alert("Could not read that file. Make sure it is a valid backup JSON.");
@@ -41,6 +41,23 @@ export default function AdminDashboard() {
           <span className="font-semibold">Save</span>.
         </p>
       </div>
+
+      {/* Storage status */}
+      {storage ? (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          ✓ <span className="font-semibold">Database connected.</span> Your edits
+          are saved on the server and show for <span className="font-semibold">all
+          visitors on every device</span>.
+        </div>
+      ) : (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ⚠ <span className="font-semibold">No database connected yet.</span> Right
+          now edits save only in <span className="font-semibold">this browser</span>.
+          To make changes live for everyone from any device, connect a free
+          database (see the README → “Make editing work everywhere”). You can still
+          log in from anywhere; only saving content needs the database.
+        </div>
+      )}
 
       <div className="grid sm:grid-cols-2 gap-4">
         {cards.map((c) => (
@@ -68,8 +85,8 @@ export default function AdminDashboard() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
         <h3 className="font-display text-lg font-bold text-slate-800">Backup & Restore</h3>
         <p className="text-sm text-slate-500 mt-1">
-          Your content is saved in this browser. Download a backup to keep it safe
-          or move it to another device.
+          Download a backup of all your content to keep it safe, or import a
+          backup to restore it.
         </p>
         <div className="mt-4 flex flex-wrap gap-3">
           <button

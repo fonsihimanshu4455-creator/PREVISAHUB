@@ -6,15 +6,19 @@ import { DEFAULT_PASSWORD } from "@/lib/content";
 export default function LoginScreen({
   onLogin,
 }: {
-  onLogin: (password: string) => boolean;
+  onLogin: (password: string) => Promise<boolean>;
 }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!onLogin(password)) {
-      setError(true);
+    setBusy(true);
+    try {
+      if (!(await onLogin(password))) setError(true);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -47,9 +51,10 @@ export default function LoginScreen({
         )}
         <button
           type="submit"
-          className="mt-4 w-full rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-600 transition"
+          disabled={busy}
+          className="mt-4 w-full rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-600 transition disabled:opacity-60"
         >
-          Login
+          {busy ? "Logging in…" : "Login"}
         </button>
         <p className="mt-4 text-center text-xs text-slate-400">
           Default password: <span className="font-mono">{DEFAULT_PASSWORD}</span>

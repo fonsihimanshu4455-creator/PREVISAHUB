@@ -20,13 +20,22 @@ export default function SettingsPage() {
 
   if (!ready) return <Loading />;
 
-  const savePassword = () => {
+  const savePassword = async () => {
     if (pw1.length < 4) return setPwMsg("Password must be at least 4 characters.");
     if (pw1 !== pw2) return setPwMsg("Passwords do not match.");
-    changePassword(pw1);
-    setPw1("");
-    setPw2("");
-    setPwMsg("✓ Password updated.");
+    setPwMsg("Saving…");
+    const result = await changePassword(pw1);
+    if (result === "ok") {
+      setPw1("");
+      setPw2("");
+      setPwMsg("✓ Password updated. Use it from any device next time you log in.");
+    } else if (result === "no-storage") {
+      setPwMsg(
+        "Connect a database first (see README), or set the ADMIN_PASSWORD env var in Vercel to change the password."
+      );
+    } else {
+      setPwMsg("Could not update password. Try again.");
+    }
   };
 
   return (
