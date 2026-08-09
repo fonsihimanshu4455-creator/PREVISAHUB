@@ -2,29 +2,23 @@
 
 import { useState } from "react";
 import Logo from "./Logo";
-
-const links = [
-  { href: "#home", label: "Home" },
-  { href: "#services", label: "Services" },
-  { href: "#countries", label: "Countries" },
-  { href: "#about", label: "About" },
-  { href: "#contact", label: "Contact" },
-];
+import { useContent } from "@/lib/SiteContentContext";
 
 export default function Navbar() {
+  const { navbar, global } = useContent();
   const [open, setOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-slate-100">
       <div className="container-x flex items-center justify-between py-3">
         <a href="#home" className="flex-shrink-0">
-          <Logo size={48} />
+          <Logo size={navbar.logoSize} />
         </a>
 
         <nav className="hidden lg:flex items-center gap-8">
-          {links.map((l) => (
+          {navbar.links.map((l) => (
             <a
-              key={l.href}
+              key={l.href + l.label}
               href={l.href}
               className="text-sm font-medium text-slate-700 hover:text-brand-orange transition"
             >
@@ -34,14 +28,16 @@ export default function Navbar() {
         </nav>
 
         <div className="hidden lg:flex items-center gap-3">
-          <a
-            href="tel:+918950991108"
-            className="text-sm font-semibold text-brand-navy hover:text-brand-orange"
-          >
-            +91 89509 91108
-          </a>
+          {navbar.showPhone && (
+            <a
+              href={`tel:${global.phone}`}
+              className="text-sm font-semibold text-brand-navy hover:text-brand-orange"
+            >
+              {global.phoneDisplay}
+            </a>
+          )}
           <a href="#contact" className="btn-primary !py-2 !px-5">
-            Free Consultation
+            {navbar.ctaLabel}
           </a>
         </div>
 
@@ -63,9 +59,9 @@ export default function Navbar() {
       {open && (
         <div className="lg:hidden border-t border-slate-100 bg-white">
           <div className="container-x py-4 flex flex-col gap-3">
-            {links.map((l) => (
+            {navbar.links.map((l) => (
               <a
-                key={l.href}
+                key={l.href + l.label}
                 href={l.href}
                 onClick={() => setOpen(false)}
                 className="py-2 text-sm font-medium text-slate-700 hover:text-brand-orange"
@@ -73,11 +69,13 @@ export default function Navbar() {
                 {l.label}
               </a>
             ))}
-            <a href="tel:+918950991108" className="py-2 text-sm font-semibold text-brand-navy">
-              Call: +91 89509 91108
-            </a>
+            {navbar.showPhone && (
+              <a href={`tel:${global.phone}`} className="py-2 text-sm font-semibold text-brand-navy">
+                Call: {global.phoneDisplay}
+              </a>
+            )}
             <a href="#contact" onClick={() => setOpen(false)} className="btn-primary">
-              Free Consultation
+              {navbar.ctaLabel}
             </a>
           </div>
         </div>

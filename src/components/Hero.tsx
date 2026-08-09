@@ -1,4 +1,10 @@
+"use client";
+
+import { useContent } from "@/lib/SiteContentContext";
+
 export default function Hero() {
+  const { hero } = useContent();
+
   return (
     <section
       id="home"
@@ -12,39 +18,34 @@ export default function Hero() {
         <div className="animate-fade-in-up">
           <div className="inline-flex items-center gap-2 rounded-full bg-brand-orange/10 px-4 py-1.5 text-xs font-semibold text-brand-orange-dark">
             <span className="h-2 w-2 rounded-full bg-brand-orange animate-pulse" />
-            Now Enrolling — Free Counselling
+            {hero.badge}
           </div>
           <h1 className="mt-5 font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight text-brand-navy">
-            Your Gateway to{" "}
+            {hero.titleStart}{" "}
             <span className="relative inline-block">
-              <span className="relative z-10 text-brand-orange">Study Abroad</span>
+              <span className="relative z-10 text-brand-orange">{hero.titleHighlight}</span>
               <span className="absolute inset-x-0 bottom-1 h-3 bg-brand-orange/20 -z-0" />
             </span>{" "}
-            Success
+            {hero.titleEnd}
           </h1>
-          <p className="mt-6 text-lg text-slate-600 max-w-xl">
-            Expert IELTS &amp; PTE coaching with end-to-end visa assistance for
-            <span className="font-semibold text-brand-navy"> USA, Canada, Australia, UK </span>
-            and <span className="font-semibold text-brand-navy">Europe</span>. We turn your
-            global education dreams into reality.
-          </p>
+          <p className="mt-6 text-lg text-slate-600 max-w-xl">{hero.subtitle}</p>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
             <a href="#contact" className="btn-primary">
-              Book Free Counselling
+              {hero.primaryBtn}
               <svg className="ml-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </a>
             <a href="#services" className="btn-secondary">
-              Explore Services
+              {hero.secondaryBtn}
             </a>
           </div>
 
           <div className="mt-10 grid grid-cols-3 gap-6 max-w-md">
-            <Stat value="5000+" label="Students Placed" />
-            <Stat value="98%" label="Visa Success" />
-            <Stat value="25+" label="Universities" />
+            {hero.stats.map((s, i) => (
+              <Stat key={i} value={s.value} label={s.label} valueSize={s.valueSize} />
+            ))}
           </div>
         </div>
 
@@ -52,15 +53,28 @@ export default function Hero() {
           <div className="relative aspect-square max-w-md mx-auto animate-float">
             <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-brand-orange to-brand-navy opacity-20 blur-2xl" />
             <div className="relative h-full rounded-3xl bg-white shadow-2xl shadow-brand-navy/20 border border-slate-100 p-8 flex flex-col items-center justify-center">
-              <BigLogo />
+              {hero.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={hero.imageUrl}
+                  alt={hero.cardTitle}
+                  style={{
+                    width: hero.imageSize,
+                    height: hero.imageSize,
+                    objectFit: "contain",
+                  }}
+                />
+              ) : (
+                <BigLogo size={hero.imageSize} />
+              )}
               <h3 className="mt-6 font-display text-2xl font-extrabold text-brand-navy text-center">
-                PRE<span className="text-brand-orange">·</span>VISA <span className="text-brand-orange">HUB</span>
+                {hero.cardTitle}
               </h3>
               <p className="mt-1 text-xs font-bold tracking-[0.2em] text-slate-500">
-                STUDY ABROAD CONSULTANT
+                {hero.cardSubtitle}
               </p>
               <div className="mt-6 flex gap-2 flex-wrap justify-center">
-                {["IELTS", "PTE", "Visa", "Admission"].map((t) => (
+                {hero.tags.map((t) => (
                   <span
                     key={t}
                     className="px-3 py-1 text-xs font-semibold rounded-full bg-brand-orange/10 text-brand-orange-dark"
@@ -75,19 +89,19 @@ export default function Hero() {
           {/* Floating cards */}
           <div className="hidden md:block absolute -left-4 top-12 bg-white rounded-2xl shadow-xl p-4 border border-slate-100 animate-float" style={{ animationDelay: "1s" }}>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-brand-orange/15 flex items-center justify-center text-xl">🎓</div>
+              <div className="h-10 w-10 rounded-full bg-brand-orange/15 flex items-center justify-center text-xl">{hero.floatCard1.icon}</div>
               <div>
-                <div className="text-sm font-bold text-brand-navy">Admission Help</div>
-                <div className="text-xs text-slate-500">Top Universities</div>
+                <div className="text-sm font-bold text-brand-navy">{hero.floatCard1.title}</div>
+                <div className="text-xs text-slate-500">{hero.floatCard1.sub}</div>
               </div>
             </div>
           </div>
           <div className="hidden md:block absolute -right-4 bottom-12 bg-white rounded-2xl shadow-xl p-4 border border-slate-100 animate-float" style={{ animationDelay: "2s" }}>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-brand-navy/15 flex items-center justify-center text-xl">✈️</div>
+              <div className="h-10 w-10 rounded-full bg-brand-navy/15 flex items-center justify-center text-xl">{hero.floatCard2.icon}</div>
               <div>
-                <div className="text-sm font-bold text-brand-navy">Visa Assistance</div>
-                <div className="text-xs text-slate-500">Quick &amp; Reliable</div>
+                <div className="text-sm font-bold text-brand-navy">{hero.floatCard2.title}</div>
+                <div className="text-xs text-slate-500">{hero.floatCard2.sub}</div>
               </div>
             </div>
           </div>
@@ -97,10 +111,13 @@ export default function Hero() {
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label, valueSize }: { value: string; label: string; valueSize: number }) {
   return (
     <div>
-      <div className="font-display text-2xl sm:text-3xl font-extrabold text-brand-orange">
+      <div
+        className="font-display font-extrabold text-brand-orange"
+        style={{ fontSize: valueSize }}
+      >
         {value}
       </div>
       <div className="text-xs text-slate-600 mt-1">{label}</div>
@@ -108,9 +125,9 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-function BigLogo() {
+function BigLogo({ size }: { size: number }) {
   return (
-    <svg width="140" height="140" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <svg width={size} height={size} viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
       <circle cx="100" cy="100" r="96" fill="#fff" stroke="#E97A2E" strokeWidth="8" />
       <circle cx="100" cy="100" r="84" fill="#fff" stroke="#1E3A8A" strokeWidth="3" />
       <path d="M40 130 Q100 110 160 130 L160 158 Q100 138 40 158 Z" fill="#E97A2E" />

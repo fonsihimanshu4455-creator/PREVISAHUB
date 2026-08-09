@@ -1,67 +1,40 @@
-const services = [
-  {
-    icon: "🎓",
-    title: "Student Visa",
-    desc: "Complete student visa guidance for top universities across USA, Canada, Australia, UK & Europe.",
-    color: "from-brand-orange to-orange-400",
-  },
-  {
-    icon: "📘",
-    title: "IELTS Coaching",
-    desc: "Expert IELTS preparation with experienced trainers. Score Band 7+ with our proven methodology.",
-    color: "from-brand-navy to-brand-navy-light",
-  },
-  {
-    icon: "🎯",
-    title: "PTE Coaching",
-    desc: "Result-oriented PTE Academic training with mock tests, personalised feedback & AI scoring.",
-    color: "from-brand-orange to-brand-orange-dark",
-  },
-  {
-    icon: "🌍",
-    title: "Tourist Visa",
-    desc: "Hassle-free tourist visa processing for Schengen, USA, UK, Canada, Australia & more.",
-    color: "from-brand-navy-light to-brand-navy",
-  },
-  {
-    icon: "🏛️",
-    title: "University Admissions",
-    desc: "End-to-end admission assistance — university shortlisting, applications & SOP guidance.",
-    color: "from-brand-orange-dark to-brand-orange",
-  },
-  {
-    icon: "📝",
-    title: "Documentation Help",
-    desc: "Professional help with SOPs, LORs, financial docs and complete visa file preparation.",
-    color: "from-brand-navy to-brand-navy-dark",
-  },
-];
+"use client";
+
+import { useContent } from "@/lib/SiteContentContext";
 
 export default function Services() {
+  const { services } = useContent();
+
   return (
     <section id="services" className="py-20 lg:py-28 bg-white">
       <div className="container-x">
         <div className="text-center max-w-3xl mx-auto">
           <div className="inline-block px-4 py-1 rounded-full bg-brand-orange/10 text-xs font-bold text-brand-orange-dark tracking-widest mb-4">
-            OUR SERVICES
+            {services.badge}
           </div>
-          <h2 className="section-title">Everything You Need to Study Abroad</h2>
-          <p className="section-subtitle mx-auto">
-            From your first IELTS class to landing at your dream university —
-            we&apos;re with you at every step of the journey.
-          </p>
+          <h2 className="section-title">{services.title}</h2>
+          <p className="section-subtitle mx-auto">{services.subtitle}</p>
         </div>
 
         <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {services.map((s) => (
+          {services.items.map((s, i) => (
             <div
-              key={s.title}
+              key={s.title + i}
               className="group relative bg-white rounded-2xl p-6 border border-slate-100 hover:border-brand-orange/30 hover:shadow-2xl hover:shadow-brand-orange/10 transition-all duration-300 hover:-translate-y-1"
             >
               <div
-                className={`inline-flex items-center justify-center h-14 w-14 rounded-xl bg-gradient-to-br ${s.color} text-2xl shadow-lg`}
+                className={`inline-flex items-center justify-center h-14 w-14 rounded-xl bg-gradient-to-br ${s.color} shadow-lg overflow-hidden`}
               >
-                {s.icon}
+                {s.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={s.imageUrl}
+                    alt={s.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span style={{ fontSize: s.iconSize }}>{s.icon}</span>
+                )}
               </div>
               <h3 className="mt-5 font-display text-xl font-bold text-brand-navy">
                 {s.title}

@@ -1,56 +1,53 @@
+"use client";
+
 import Logo from "./Logo";
+import { useContent } from "@/lib/SiteContentContext";
 
 export default function Footer() {
+  const { footer, global } = useContent();
+
   return (
     <footer className="bg-brand-navy-dark text-blue-100">
       <div className="container-x py-14">
         <div className="grid lg:grid-cols-4 gap-10">
           <div className="lg:col-span-2">
             <div className="bg-white inline-block rounded-2xl p-3">
-              <Logo size={50} />
+              <Logo size={footer.logoSize} />
             </div>
             <p className="mt-5 text-sm text-blue-100/70 max-w-md leading-relaxed">
-              Pre Visa Hub is your trusted study abroad consultant — empowering
-              students to achieve global education dreams in USA, Canada,
-              Australia, UK and Europe.
+              {footer.description}
             </p>
             <div className="mt-6 flex gap-3">
-              <Social href="https://www.instagram.com/pre.visa.hub_9/" label="Instagram" icon="📸" />
-              <Social href="https://wa.me/918950991108" label="WhatsApp" icon="💬" />
-              <Social href="tel:+918950991108" label="Call" icon="📞" />
+              <Social href={global.instagramUrl} label="Instagram" icon="📸" />
+              <Social href={`https://wa.me/${global.whatsapp}`} label="WhatsApp" icon="💬" />
+              <Social href={`tel:${global.phone}`} label="Call" icon="📞" />
             </div>
           </div>
 
           <div>
-            <h4 className="font-display font-bold text-white mb-4">Quick Links</h4>
+            <h4 className="font-display font-bold text-white mb-4">{footer.quickLinksTitle}</h4>
             <ul className="space-y-2 text-sm">
-              <FooterLink href="#home">Home</FooterLink>
-              <FooterLink href="#services">Services</FooterLink>
-              <FooterLink href="#countries">Countries</FooterLink>
-              <FooterLink href="#about">About Us</FooterLink>
-              <FooterLink href="#contact">Contact</FooterLink>
+              {footer.quickLinks.map((l, i) => (
+                <FooterLink key={i} href={l.href}>{l.label}</FooterLink>
+              ))}
             </ul>
           </div>
 
           <div>
-            <h4 className="font-display font-bold text-white mb-4">Services</h4>
+            <h4 className="font-display font-bold text-white mb-4">{footer.servicesTitle}</h4>
             <ul className="space-y-2 text-sm">
-              <FooterLink href="#services">Student Visa</FooterLink>
-              <FooterLink href="#services">Tourist Visa</FooterLink>
-              <FooterLink href="#services">IELTS Coaching</FooterLink>
-              <FooterLink href="#services">PTE Coaching</FooterLink>
-              <FooterLink href="#services">University Admissions</FooterLink>
+              {footer.serviceLinks.map((l, i) => (
+                <FooterLink key={i} href={l.href}>{l.label}</FooterLink>
+              ))}
             </ul>
           </div>
         </div>
 
         <div className="mt-12 pt-6 border-t border-white/10 flex flex-col sm:flex-row justify-between gap-3 text-sm">
           <p className="text-blue-100/60">
-            © {new Date().getFullYear()} Pre Visa Hub. All rights reserved.
+            © {new Date().getFullYear()} {footer.copyright}
           </p>
-          <p className="text-blue-100/60">
-            Made with <span className="text-brand-orange">♥</span> for aspiring students
-          </p>
+          <p className="text-blue-100/60">{footer.madeWith}</p>
         </div>
       </div>
     </footer>
