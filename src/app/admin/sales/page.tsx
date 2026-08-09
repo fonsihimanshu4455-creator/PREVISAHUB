@@ -24,12 +24,17 @@ type Payment = {
   paidOn: string;
   note: string;
 };
-type Student = { id: string; name: string; counsellor: string; stage: string };
+type Summary = {
+  totals: { billed: number; collected: number; pending: number; students: number; approved: number; closed: number };
+  byMonth: { month: string; amount: number }[];
+  byCounsellor: { counsellor: string; students: number; collected: number; pending: number }[];
+  dues: Fee[];
+  recentPayments: Payment[];
+  paymentsCount: number;
+};
 
 export default function SalesPage() {
-  const [fees, setFees] = useState<Fee[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
+  const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview" | "dues" | "payments">("overview");
@@ -39,11 +44,7 @@ export default function SalesPage() {
     try {
       const d = await fetch("/api/reports").then((r) => r.json());
       if (d.error) setError(d.detail || d.error);
-      else {
-        setFees(d.fees ?? []);
-        setPayments(d.payments ?? []);
-        setStudents(d.students ?? []);
-      }
+      else setData(d);
     } catch (e) {
       setError(String(e));
     }
@@ -54,59 +55,14 @@ export default function SalesPage() {
     load();
   }, []);
 
-  const totals = useMemo(() => {
-    const billed = fees.reduce((a, f) => a + f.totalFee, 0);
-    const collected = payments.reduce((a, p) => a + p.amount, 0);
-    const pending = fees.reduce((a, f) => a + f.pending, 0);
-    const approved = students.filter((s) => s.stage === "Approved").length;
-    const closed = students.filter((s) =>
-      ["Approved", "Rejected"].includes(s.stage)
-    ).length;
-    return {
-      billed,
-      collected,
-      pending,
-      approved,
-      // Of the cases that reached a decision, how many were approved.
-      successRate: closed ? Math.round((approved / closed) * 100) : 0,
-      collectionRate: billed ? Math.round((collected / billed) * 100) : 0,
-    };
-  }, [fees, payments, students]);
-
-  // Revenue per month, most recent last.
-  const byMonth = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const p of payments) {
-      const key = p.paidOn.slice(0, 7);
-      m.set(key, (m.get(key) ?? 0) + p.amount);
-    }
-    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-6);
-  }, [payments]);
-
-  const byCounsellor = useMemo(() => {
-    const m = new Map<string, { collected: number; pending: number; students: number }>();
-    for (const f of fees) {
-      const k = f.counsellor || "Unassigned";
-      const e = m.get(k) ?? { collected: 0, pending: 0, students: 0 };
-      e.pending += f.pending;
-      e.students += 1;
-      m.set(k, e);
-    }
-    for (const p of payments) {
-      const k = p.counsellor || "Unassigned";
-      const e = m.get(k) ?? { collected: 0, pending: 0, students: 0 };
-      e.collected += p.amount;
-      m.set(k, e);
-    }
-    return [...m.entries()].sort((a, b) => b[1].collected - a[1].collected);
-  }, [fees, payments]);
-
-  const dues = useMemo(
-    () => fees.filter((f) => f.pending > 0).sort((a, b) => b.pending - a.pending),
-    [fees]
-  );
-
-  const maxMonth = Math.max(1, ...byMonth.map(([, v]) => v));
+  const totals = data?.totals;
+  const byMonth = data?.byMonth ?? [];
+  const byCounsellor = data?.byCounsellor ?? [];
+  const dues = data?.dues ?? [];
+  const payments = data?.recentPayments ?? [];
+  const successRate = totals?.closed ? Math.round((totals.approved / totals.closed) * 100) : 0;
+  const collectionRate = totals?.billed ? Math.round((totals.collected / totals.billed) * 100) : 0;
+  const maxMonth = Math.max(1, ...byMonth.map((m) => m.amount));
 
   if (loading) {
     return <div className="py-16 text-center text-slate-400">Loading…</div>;
@@ -130,17 +86,17 @@ export default function SalesPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Kpi label="Collected" value={formatINR(totals.collected)} tone="text-green-600" sub={`${totals.collectionRate}% of billed`} />
-        <Kpi label="Pending" value={formatINR(totals.pending)} tone="text-red-600" sub={`${dues.length} students owe`} />
-        <Kpi label="Total Billed" value={formatINR(totals.billed)} tone="text-slate-800" sub={`${fees.length} students`} />
-        <Kpi label="Visa Success" value={`${totals.successRate}%`} tone="text-violet-600" sub={`${totals.approved} approved`} />
+        <Kpi label="Collected" value={formatINR(totals?.collected ?? 0)} tone="text-green-600" sub={`${collectionRate}% of billed`} />
+        <Kpi label="Pending" value={formatINR(totals?.pending ?? 0)} tone="text-red-600" sub={`${dues.length} students owe`} />
+        <Kpi label="Total Billed" value={formatINR(totals?.billed ?? 0)} tone="text-slate-800" sub={`${totals?.students ?? 0} students`} />
+        <Kpi label="Visa Success" value={`${successRate}%`} tone="text-violet-600" sub={`${totals?.approved ?? 0} approved`} />
       </div>
 
       <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-px">
         {([
           ["overview", "Overview"],
           ["dues", `Pending Dues (${dues.length})`],
-          ["payments", `All Payments (${payments.length})`],
+          ["payments", `Recent Payments (${data?.paymentsCount ?? 0})`],
         ] as const).map(([k, l]) => (
           <button
             key={k}
@@ -168,7 +124,7 @@ export default function SalesPage() {
               </p>
             )}
             <div className="space-y-3">
-              {byMonth.map(([month, amount]) => (
+              {byMonth.map(({ month, amount }) => (
                 <div key={month} className="flex items-center gap-3">
                   <span className="w-20 shrink-0 text-xs font-medium text-slate-600">
                     {new Date(month + "-01T00:00:00Z").toLocaleDateString("en-GB", {
@@ -205,9 +161,9 @@ export default function SalesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {byCounsellor.map(([name, v]) => (
-                    <tr key={name}>
-                      <td className="py-2 font-semibold text-slate-700">{name}</td>
+                  {byCounsellor.map((v) => (
+                    <tr key={v.counsellor}>
+                      <td className="py-2 font-semibold text-slate-700">{v.counsellor}</td>
                       <td className="py-2 text-right text-slate-500">{v.students}</td>
                       <td className="py-2 text-right font-semibold text-green-600">
                         {formatINR(v.collected)}

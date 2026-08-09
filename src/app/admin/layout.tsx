@@ -62,6 +62,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <Link
                       key={item.href}
                       href={item.href}
+                      // The root layout reads site content from the database on
+                      // every render, so prefetching all 15 sidebar links would
+                      // fire 15 server renders (and 15 queries) per page view.
+                      prefetch={false}
                       onClick={() => setMenuOpen(false)}
                       className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
                         active

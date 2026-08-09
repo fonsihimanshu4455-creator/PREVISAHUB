@@ -62,6 +62,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [error, setError] = useState<string | null>(null);
   const [fees, setFees] = useState<FeeSummary[]>([]);
   const [payments, setPayments] = useState<PaymentRec[]>([]);
+  const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -127,8 +128,9 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   async function loadMoney() {
     try {
       const rr = await fetch("/api/reports").then((r) => r.json());
-      if (Array.isArray(rr.payments)) setPayments(rr.payments);
-      if (Array.isArray(rr.fees)) setFees(rr.fees);
+      if (Array.isArray(rr.recentPayments)) setPayments(rr.recentPayments);
+      if (Array.isArray(rr.dues)) setFees(rr.dues);
+      if (rr.totals) setTotals(rr.totals);
     } catch {
       // Money data is optional here — the rest of the CRM still works.
     }
@@ -228,6 +230,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
           students={students}
           fees={fees}
           payments={payments}
+          totals={totals}
           onAdd={addPayment}
           onDelete={removePayment}
         />
@@ -1285,22 +1288,26 @@ function Payments({
   students,
   fees,
   payments,
+  totals,
   onAdd,
   onDelete,
 }: {
   students: Student[];
   fees: FeeSummary[];
   payments: PaymentRec[];
+  totals: { billed: number; collected: number; pending: number } | null;
   onAdd: (body: Record<string, unknown>) => Promise<{ error?: string }>;
   onDelete: (id: string) => void | Promise<void>;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showFee, setShowFee] = useState(false);
 
-  const collected = payments.reduce((a, p) => a + p.amount, 0);
-  const pending = fees.reduce((a, f) => a + f.pending, 0);
-  const billed = fees.reduce((a, f) => a + f.totalFee, 0);
-  const owing = fees.filter((f) => f.pending > 0).sort((a, b) => b.pending - a.pending);
+  // Totals come from the server: `payments` here is only the recent slice and
+  // `fees` only the students who still owe, so summing them would undercount.
+  const collected = totals?.collected ?? 0;
+  const pending = totals?.pending ?? 0;
+  const billed = totals?.billed ?? 0;
+  const owing = fees;
 
   return (
     <div className="space-y-4">
