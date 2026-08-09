@@ -343,3 +343,38 @@ export async function setTaskDone(
   `;
   return row ? toTask(row) : null;
 }
+
+// --------------------------- key/value settings ----------------------------
+// The website editor and the admin password originally lived in Upstash Redis.
+// Postgres is already connected for the CRM, so it can hold them too — that
+// way a working setup needs one database, not two.
+
+async function ensureSettingsSchema(): Promise<void> {
+  if (!sql) return;
+  await sql`
+    CREATE TABLE IF NOT EXISTS site_settings (
+      key        text PRIMARY KEY,
+      value      text NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    )
+  `;
+}
+
+export async function settingGet(key: string): Promise<string | null> {
+  if (!sql) return null;
+  await ensureSettingsSchema();
+  const rows = await sql<{ value: string }[]>`
+    SELECT value FROM site_settings WHERE key = ${key}
+  `;
+  return rows[0]?.value ?? null;
+}
+
+export async function settingSet(key: string, value: string): Promise<void> {
+  if (!sql) return;
+  await ensureSettingsSchema();
+  await sql`
+    INSERT INTO site_settings (key, value, updated_at)
+    VALUES (${key}, ${value}, now())
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+  `;
+}

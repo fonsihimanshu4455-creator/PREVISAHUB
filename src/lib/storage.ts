@@ -1,12 +1,19 @@
 // ============================================================================
-// Server-side storage (database) helpers.
+// Server-side storage for site content and the admin password.
 // ----------------------------------------------------------------------------
-// Talks to an Upstash-compatible Redis over its REST API. This is what both
-// Vercel KV and the Vercel Marketplace "Upstash" integration provide, and the
-// env vars they auto-inject are read below. No npm dependency required.
+// Two backends, tried in order:
 //
-// If no database is connected, storageConfigured() is false and the app
-// gracefully falls back to per-browser localStorage.
+//   1. Upstash-compatible Redis over REST — what Vercel KV and the Vercel
+//      Marketplace "Upstash" integration provide, read from the env vars they
+//      auto-inject. No npm dependency required.
+//   2. The Postgres database already configured for the CRM (DATABASE_URL).
+//
+// Postgres is the fallback so a working install needs one database rather than
+// two: connect DATABASE_URL and website editing, the admin password and the
+// CRM all persist together.
+//
+// With neither configured, storageConfigured() is false and the admin panel
+// falls back to per-browser localStorage — edits stay on that one device.
 // ============================================================================
 
 import {
@@ -17,18 +24,31 @@ import {
   KV_PASSWORD_KEY,
   DEFAULT_PASSWORD,
 } from "./content";
+import { dbEnabled, settingGet, settingSet } from "./db";
 
 const REST_URL =
   process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
 const REST_TOKEN =
   process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
 
-export function storageConfigured(): boolean {
+function redisConfigured(): boolean {
   return Boolean(REST_URL && REST_TOKEN);
 }
 
+/** Is there anywhere to persist edits server-side? */
+export function storageConfigured(): boolean {
+  return redisConfigured() || dbEnabled;
+}
+
+/** Which backend is actually in use — surfaced in the admin UI. */
+export function storageBackend(): "redis" | "postgres" | "none" {
+  if (redisConfigured()) return "redis";
+  if (dbEnabled) return "postgres";
+  return "none";
+}
+
 async function redis(command: string[]): Promise<unknown> {
-  if (!storageConfigured()) return null;
+  if (!redisConfigured()) return null;
   const res = await fetch(REST_URL, {
     method: "POST",
     headers: {
@@ -46,11 +66,29 @@ async function redis(command: string[]): Promise<unknown> {
   return data.result ?? null;
 }
 
+async function get(key: string): Promise<string | null> {
+  if (redisConfigured()) return (await redis(["GET", key])) as string | null;
+  if (dbEnabled) return settingGet(key);
+  return null;
+}
+
+async function set(key: string, value: string): Promise<void> {
+  if (redisConfigured()) {
+    await redis(["SET", key, value]);
+    return;
+  }
+  if (dbEnabled) {
+    await settingSet(key, value);
+    return;
+  }
+  throw new Error("No storage configured.");
+}
+
 // ---- Content -------------------------------------------------------------
 export async function readContent(): Promise<SiteContent | null> {
   if (!storageConfigured()) return null;
   try {
-    const raw = (await redis(["GET", KV_CONTENT_KEY])) as string | null;
+    const raw = await get(KV_CONTENT_KEY);
     if (!raw) return null;
     return mergeDefaults(defaultContent, JSON.parse(raw));
   } catch {
@@ -59,17 +97,17 @@ export async function readContent(): Promise<SiteContent | null> {
 }
 
 export async function writeContent(content: SiteContent): Promise<void> {
-  await redis(["SET", KV_CONTENT_KEY, JSON.stringify(content)]);
+  await set(KV_CONTENT_KEY, JSON.stringify(content));
 }
 
 // ---- Password ------------------------------------------------------------
 export async function getAdminPassword(): Promise<string> {
   if (storageConfigured()) {
     try {
-      const stored = (await redis(["GET", KV_PASSWORD_KEY])) as string | null;
+      const stored = await get(KV_PASSWORD_KEY);
       if (stored) return stored;
     } catch {
-      /* fall through */
+      /* fall through to the env/default password */
     }
   }
   return process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
@@ -77,6 +115,6 @@ export async function getAdminPassword(): Promise<string> {
 
 export async function setAdminPassword(password: string): Promise<boolean> {
   if (!storageConfigured()) return false;
-  await redis(["SET", KV_PASSWORD_KEY, password]);
+  await set(KV_PASSWORD_KEY, password);
   return true;
 }
