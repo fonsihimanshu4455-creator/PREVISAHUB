@@ -244,13 +244,48 @@ function toTask(r: TaskRow): Task {
 
 // --------------------------- queries ---------------------------------------
 
-export async function listStudents(): Promise<Student[]> {
-  if (!sql) return SEED_STUDENTS;
+/**
+ * List students. Pass `counsellor` to scope the result to one person's
+ * caseload — staff sessions use this so they only ever see their own
+ * students; the admin calls it without a filter and sees everyone.
+ */
+export async function listStudents(counsellor?: string): Promise<Student[]> {
+  if (!sql) {
+    return counsellor
+      ? SEED_STUDENTS.filter(
+          (s) => s.counsellor.toLowerCase() === counsellor.toLowerCase()
+        )
+      : SEED_STUDENTS;
+  }
   await ensureSchema();
-  const rows = await sql<StudentRow[]>`
-    SELECT * FROM students ORDER BY created_at DESC, id DESC
-  `;
+  const rows = counsellor
+    ? await sql<StudentRow[]>`
+        SELECT * FROM students
+        WHERE lower(counsellor) = lower(${counsellor})
+        ORDER BY created_at DESC, id DESC
+      `
+    : await sql<StudentRow[]>`
+        SELECT * FROM students ORDER BY created_at DESC, id DESC
+      `;
   return rows.map(toStudent);
+}
+
+/** Is this student assigned to this counsellor? Used to gate staff writes. */
+export async function studentBelongsTo(
+  id: string,
+  counsellor: string
+): Promise<boolean> {
+  if (!sql) {
+    return SEED_STUDENTS.some(
+      (s) => s.id === id && s.counsellor.toLowerCase() === counsellor.toLowerCase()
+    );
+  }
+  await ensureSchema();
+  const rows = await sql<{ id: string }[]>`
+    SELECT id FROM students
+    WHERE id = ${id} AND lower(counsellor) = lower(${counsellor})
+  `;
+  return rows.length > 0;
 }
 
 export async function createStudent(s: Student): Promise<Student> {

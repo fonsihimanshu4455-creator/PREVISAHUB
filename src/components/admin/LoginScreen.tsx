@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DEFAULT_PASSWORD } from "@/lib/content";
+
 
 export default function LoginScreen({
   onLogin,
@@ -56,10 +56,11 @@ export default function LoginScreen({
         >
           {busy ? "Logging in…" : "Login"}
         </button>
-        <p className="mt-4 text-center text-xs text-slate-400">
-          Default password: <span className="font-mono">{DEFAULT_PASSWORD}</span>
-          <br />
-          You can change it in Global Settings.
+        <p className="mt-5 text-center text-xs text-slate-400">
+          Staff member?{" "}
+          <a href="/staff" className="font-semibold text-orange-600 hover:underline">
+            Sign in here
+          </a>
         </p>
       </form>
     </div>

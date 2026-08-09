@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
 import { createStudent, dbEnabled, listStudents } from "@/lib/db";
 import { Student, TODAY } from "@/lib/crm-data";
-import { isAuthed } from "@/lib/authServer";
+import { requireCrmAccess } from "@/lib/authServer";
 
 export const dynamic = "force-dynamic";
 
-// Student records are personal data, so every route here requires an admin
-// session — reads included, unlike the public site-content endpoint.
+// Student records are personal data, so every route here requires a session —
+// reads included, unlike the public site-content endpoint. Staff sessions are
+// scoped to their own caseload.
 export async function GET() {
-  if (!(await isAuthed())) {
+  const session = await requireCrmAccess();
+  if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const students = await listStudents();
-    return NextResponse.json({ mode: dbEnabled ? "db" : "demo", students });
+    const students = await listStudents(
+      session.role === "staff" ? session.staff.name : undefined
+    );
+    return NextResponse.json({
+      mode: dbEnabled ? "db" : "demo",
+      role: session.role,
+      students,
+    });
   } catch (e) {
     return NextResponse.json(
       { error: "Failed to load students", detail: String(e) },
@@ -23,7 +31,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  if (!(await isAuthed())) {
+  const session = await requireCrmAccess();
+  if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
@@ -35,6 +44,12 @@ export async function POST(req: Request) {
       );
     }
     const name: string = body.name.trim();
+    // Staff can only file leads under their own name.
+    const counsellor =
+      session.role === "staff"
+        ? session.staff.name
+        : body.counsellor || "Rohit Sharma";
+
     const student: Student = {
       id: `PVH-${Math.floor(1000 + Math.random() * 9000)}`,
       name,
@@ -45,7 +60,7 @@ export async function POST(req: Request) {
       city: body.city?.trim() || "—",
       country: body.country || "Canada",
       intake: body.intake || "May 2027",
-      counsellor: body.counsellor || "Rohit Sharma",
+      counsellor,
       stage: "Enquiry",
       testType: "Not Taken",
       score: null,

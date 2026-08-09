@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { dbEnabled, updateStudent } from "@/lib/db";
+import { dbEnabled, studentBelongsTo, updateStudent } from "@/lib/db";
 import { Student, TODAY } from "@/lib/crm-data";
-import { isAuthed } from "@/lib/authServer";
+import { requireCrmAccess } from "@/lib/authServer";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +9,20 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
-  if (!(await isAuthed())) {
+  const session = await requireCrmAccess();
+  if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  // Staff may only edit students assigned to them — checked server-side, not
+  // just hidden in the UI.
+  if (
+    session.role === "staff" &&
+    !(await studentBelongsTo(params.id, session.staff.name))
+  ) {
+    return NextResponse.json(
+      { error: "This student is not assigned to you." },
+      { status: 403 }
+    );
   }
   try {
     const body = await req.json();

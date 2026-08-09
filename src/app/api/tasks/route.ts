@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { dbEnabled, listTasks } from "@/lib/db";
-import { isAuthed } from "@/lib/authServer";
+import { requireCrmAccess } from "@/lib/authServer";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await isAuthed())) {
+  if (!(await requireCrmAccess())) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {

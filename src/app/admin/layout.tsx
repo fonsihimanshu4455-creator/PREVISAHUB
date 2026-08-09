@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAdminAuth } from "@/lib/adminAuth";
-import { adminNav } from "@/lib/adminNav";
+import { adminNav, adminNavGroups } from "@/lib/adminNav";
 import LoginScreen from "@/components/admin/LoginScreen";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -42,25 +42,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </div>
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          {adminNav.map((item) => {
-            const active =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
+          {adminNavGroups.map((group) => {
+            const items = adminNav.filter((i) => i.group === group);
+            if (!items.length) return null;
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMenuOpen(false)}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                  active
-                    ? "bg-orange-500 text-white font-semibold"
-                    : "text-slate-300 hover:bg-white/10"
-                }`}
-              >
-                <span className="text-base">{item.icon}</span>
-                {item.label}
-              </Link>
+              <div key={group} className="pb-1">
+                {/* "Main" is a single item, so a heading over it would be noise. */}
+                {group !== "Main" && (
+                  <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                    {group}
+                  </div>
+                )}
+                {items.map((item) => {
+                  const active =
+                    item.href === "/admin"
+                      ? pathname === "/admin"
+                      : pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMenuOpen(false)}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                        active
+                          ? "bg-orange-500 text-white font-semibold"
+                          : "text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      <span className="text-base">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
