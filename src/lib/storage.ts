@@ -85,10 +85,22 @@ async function set(key: string, value: string): Promise<void> {
 }
 
 // ---- Content -------------------------------------------------------------
+/**
+ * Never let a slow or unreachable database hang a page render — fall back to
+ * the built-in defaults instead. Rendering the site is more important than
+ * rendering the very latest edit.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    p,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ]);
+}
+
 export async function readContent(): Promise<SiteContent | null> {
   if (!storageConfigured()) return null;
   try {
-    const raw = await get(KV_CONTENT_KEY);
+    const raw = await withTimeout(get(KV_CONTENT_KEY), 5000);
     if (!raw) return null;
     return mergeDefaults(defaultContent, JSON.parse(raw));
   } catch {

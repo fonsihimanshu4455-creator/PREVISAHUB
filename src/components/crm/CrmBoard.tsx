@@ -80,7 +80,6 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         if (Array.isArray(rs.students)) setStudents(rs.students);
         if (Array.isArray(rt.tasks)) setTasks(rt.tasks);
         setMode(rs.mode === "db" ? "db" : "demo");
-        loadMoney();
       } catch (e) {
         if (alive) {
           setError(String(e));
@@ -123,13 +122,12 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     await api(`/api/tasks/${id}`, "PATCH", { done });
   }
 
+  // /api/reports already returns payments and fees, so this is one request
+  // rather than two — /api/payments would repeat work this endpoint does.
   async function loadMoney() {
     try {
-      const [rp, rr] = await Promise.all([
-        fetch("/api/payments").then((r) => r.json()),
-        fetch("/api/reports").then((r) => r.json()),
-      ]);
-      if (Array.isArray(rp.payments)) setPayments(rp.payments);
+      const rr = await fetch("/api/reports").then((r) => r.json());
+      if (Array.isArray(rr.payments)) setPayments(rr.payments);
       if (Array.isArray(rr.fees)) setFees(rr.fees);
     } catch {
       // Money data is optional here — the rest of the CRM still works.
@@ -146,6 +144,17 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     await api(`/api/payments/${id}`, "DELETE");
     await loadMoney();
   }
+
+  // Fetch fees/payments the first time the Payments tab is opened, so the
+  // dashboard is not held up by data it does not show.
+  const [moneyLoaded, setMoneyLoaded] = useState(false);
+  useEffect(() => {
+    if (view === "payments" && !moneyLoaded) {
+      setMoneyLoaded(true);
+      loadMoney();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, moneyLoaded]);
 
   const pendingTasks = tasks.filter((t) => !t.done && t.due <= TODAY).length;
 

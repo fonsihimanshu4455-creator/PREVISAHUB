@@ -75,7 +75,20 @@ export function staffSessionToken(id: string, passwordHash: string): string {
 
 // --------------------------- schema ----------------------------------------
 
-export async function ensureStaffSchema(): Promise<void> {
+let staffReady: Promise<void> | null = null;
+
+export function ensureStaffSchema(): Promise<void> {
+  if (!sql) return Promise.resolve();
+  if (!staffReady) {
+    staffReady = createStaffSchema().catch((e) => {
+      staffReady = null;
+      throw e;
+    });
+  }
+  return staffReady;
+}
+
+async function createStaffSchema(): Promise<void> {
   if (!sql) return;
   await sql`
     CREATE TABLE IF NOT EXISTS staff (

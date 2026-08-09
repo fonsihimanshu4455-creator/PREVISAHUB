@@ -70,7 +70,20 @@ function toPayment(r: PaymentRow): Payment {
   };
 }
 
-export async function ensurePaymentsSchema(): Promise<void> {
+let paymentsReady: Promise<void> | null = null;
+
+export function ensurePaymentsSchema(): Promise<void> {
+  if (!sql) return Promise.resolve();
+  if (!paymentsReady) {
+    paymentsReady = createPaymentsSchema().catch((e) => {
+      paymentsReady = null;
+      throw e;
+    });
+  }
+  return paymentsReady;
+}
+
+async function createPaymentsSchema(): Promise<void> {
   if (!sql) return;
   await sql`
     CREATE TABLE IF NOT EXISTS payments (

@@ -64,7 +64,7 @@ const cfg = parseDbUrl(raw);
 // as "prepared statement ... already exists" under load.
 export const sql = cfg
   ? postgres(cfg.clean, {
-      max: 1,
+      max: 3,
       idle_timeout: 20,
       prepare: !cfg.pooled,
       ssl: cfg.noSsl ? false : "require",
@@ -121,7 +121,24 @@ export function describeConnection() {
 
 // --------------------------- schema + seed ---------------------------------
 
-export async function ensureSchema(): Promise<void> {
+// Schema setup is idempotent but not free: each CREATE/ALTER is a network
+// round-trip to the database. Running it per request added ~20 hops to every
+// page load, so it is memoised — one run per server instance. A failure clears
+// the cache so the next request retries rather than assuming success.
+let schemaReady: Promise<void> | null = null;
+
+export function ensureSchema(): Promise<void> {
+  if (!sql) return Promise.resolve();
+  if (!schemaReady) {
+    schemaReady = createSchema().catch((e) => {
+      schemaReady = null;
+      throw e;
+    });
+  }
+  return schemaReady;
+}
+
+async function createSchema(): Promise<void> {
   if (!sql) return;
   await sql`
     CREATE TABLE IF NOT EXISTS students (
@@ -142,6 +159,10 @@ export async function ensureSchema(): Promise<void> {
       notes         text,
       created_at    timestamptz NOT NULL DEFAULT now()
     )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS students_counsellor_idx
+    ON students (lower(counsellor))
   `;
   await sql`
     CREATE TABLE IF NOT EXISTS tasks (
@@ -349,7 +370,20 @@ export async function setTaskDone(
 // Postgres is already connected for the CRM, so it can hold them too — that
 // way a working setup needs one database, not two.
 
-async function ensureSettingsSchema(): Promise<void> {
+let settingsReady: Promise<void> | null = null;
+
+function ensureSettingsSchema(): Promise<void> {
+  if (!sql) return Promise.resolve();
+  if (!settingsReady) {
+    settingsReady = createSettingsSchema().catch((e) => {
+      settingsReady = null;
+      throw e;
+    });
+  }
+  return settingsReady;
+}
+
+async function createSettingsSchema(): Promise<void> {
   if (!sql) return;
   await sql`
     CREATE TABLE IF NOT EXISTS site_settings (

@@ -3,6 +3,12 @@ import "./globals.css";
 import { SiteContentProvider } from "@/lib/SiteContentContext";
 import ThemeInjector from "@/components/ThemeInjector";
 import { readContent } from "@/lib/storage";
+
+// The layout reads site content from the database, so pages are rendered per
+// request rather than at build time. Without this, static generation of pages
+// like /_not-found waits on a database round-trip during `next build` and the
+// build worker times out.
+export const dynamic = "force-dynamic";
 import { defaultContent } from "@/lib/content";
 
 export const metadata: Metadata = {
