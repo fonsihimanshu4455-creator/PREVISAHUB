@@ -143,22 +143,7 @@ export default function CrmPage() {
       </div>
 
       {/* Setup hint when there is no database yet */}
-      {mode === "demo" && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          ⚠ <span className="font-semibold">No CRM database connected yet.</span>{" "}
-          Student records will not be saved. Add a <code>DATABASE_URL</code> in
-          Vercel, then open{" "}
-          <a href="/api/seed" className="font-semibold underline">
-            /api/seed
-          </a>{" "}
-          once to create the tables.
-          {error && (
-            <div className="mt-1.5 break-all font-mono text-[11px] opacity-70">
-              {error}
-            </div>
-          )}
-        </div>
-      )}
+      {mode === "demo" && <SetupPanel error={error} />}
 
       {/* Tabs */}
       <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-px">
@@ -188,6 +173,102 @@ export default function CrmPage() {
       )}
       {view === "pipeline" && <Pipeline students={students} onMove={moveStudent} />}
       {view === "tasks" && <Tasks tasks={tasks} onToggle={toggleTask} />}
+    </div>
+  );
+}
+
+// =========================================================================
+// SETUP / DIAGNOSTICS
+// =========================================================================
+type CheckResult = {
+  ok: boolean;
+  checks: { label: string; ok: boolean; detail: string }[];
+  next: string;
+};
+
+function SetupPanel({ error }: { error: string | null }) {
+  const [result, setResult] = useState<CheckResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
+
+  async function check() {
+    setBusy(true);
+    setSeedMsg(null);
+    try {
+      setResult(await fetch("/api/db-check").then((r) => r.json()));
+    } catch (e) {
+      setResult({
+        ok: false,
+        checks: [{ label: "Could not run the check", ok: false, detail: String(e) }],
+        next: "Try again in a moment.",
+      });
+    }
+    setBusy(false);
+  }
+
+  async function seed() {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/seed", { method: "POST" }).then((x) => x.json());
+      setSeedMsg(r.ok ? `${r.message} Reload the page to see your data.` : r.error);
+      if (r.ok) await check();
+    } catch (e) {
+      setSeedMsg(String(e));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+      <div className="font-semibold">⚠ CRM database not connected yet</div>
+      <p className="mt-1 text-amber-800">
+        You are seeing starter data — nothing is being saved. Run the check below
+        and it will tell you exactly what is missing.
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={check}
+          disabled={busy}
+          className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50"
+        >
+          {busy ? "Checking…" : "Check connection"}
+        </button>
+        <button
+          onClick={seed}
+          disabled={busy}
+          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+        >
+          Create tables
+        </button>
+      </div>
+
+      {seedMsg && (
+        <div className="mt-3 rounded-lg bg-white/70 px-3 py-2 text-xs">{seedMsg}</div>
+      )}
+
+      {result && (
+        <div className="mt-3 space-y-1.5 rounded-lg bg-white/70 p-3">
+          {result.checks.map((c) => (
+            <div key={c.label} className="flex gap-2 text-xs">
+              <span className={c.ok ? "text-green-600" : "text-red-600"}>
+                {c.ok ? "✓" : "✕"}
+              </span>
+              <span>
+                <span className="font-semibold">{c.label}</span>
+                <span className="text-slate-600"> — {c.detail}</span>
+              </span>
+            </div>
+          ))}
+          <div className="border-t border-amber-200 pt-2 text-xs font-semibold">
+            Next: {result.next}
+          </div>
+        </div>
+      )}
+
+      {error && !result && (
+        <div className="mt-2 break-all font-mono text-[11px] opacity-70">{error}</div>
+      )}
     </div>
   );
 }

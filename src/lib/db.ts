@@ -73,6 +73,52 @@ export const sql = cfg
 
 export const dbEnabled = !!sql;
 
+/**
+ * Describes the configured connection for the diagnostics endpoint.
+ * Deliberately returns no password — only whether one is present and whether
+ * it still looks like the copied placeholder.
+ */
+export function describeConnection() {
+  if (!raw) {
+    return {
+      configured: false,
+      parsed: false,
+      host: "",
+      port: "",
+      database: "",
+      pooled: false,
+      hasPassword: false,
+      passwordLooksLikePlaceholder: false,
+    };
+  }
+  try {
+    const u = new URL(raw);
+    const pw = decodeURIComponent(u.password || "");
+    return {
+      configured: true,
+      parsed: true,
+      host: u.hostname,
+      port: u.port || "5432",
+      database: u.pathname.replace(/^\//, "") || "postgres",
+      pooled: cfg?.pooled ?? false,
+      hasPassword: pw.length > 0,
+      passwordLooksLikePlaceholder:
+        /your[-_]?password|\[|\]|^password$/i.test(pw),
+    };
+  } catch {
+    return {
+      configured: true,
+      parsed: false,
+      host: "",
+      port: "",
+      database: "",
+      pooled: cfg?.pooled ?? false,
+      hasPassword: false,
+      passwordLooksLikePlaceholder: false,
+    };
+  }
+}
+
 // --------------------------- schema + seed ---------------------------------
 
 export async function ensureSchema(): Promise<void> {
