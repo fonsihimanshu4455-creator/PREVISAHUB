@@ -103,7 +103,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <span className="font-display font-bold">Admin Panel</span>
         </header>
-        <main className="p-4 sm:p-6 max-w-4xl mx-auto">{children}</main>
+        {/* The CRM has wide tables and a kanban board, so it gets more room
+            than the content-editing pages. */}
+        <main
+          className={`p-4 sm:p-6 mx-auto ${
+            pathname.startsWith("/admin/crm") ? "max-w-7xl" : "max-w-4xl"
+          }`}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

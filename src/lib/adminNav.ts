@@ -8,6 +8,7 @@ export type AdminNavItem = {
 
 export const adminNav: AdminNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "🏠", desc: "Overview & quick actions" },
+  { href: "/admin/crm", label: "Student CRM", icon: "🎓", desc: "Visa status, IELTS/PTE scores & follow-ups" },
   { href: "/admin/settings", label: "Global Settings", icon: "⚙️", desc: "Phone, WhatsApp, Instagram, hours" },
   { href: "/admin/theme", label: "Theme & Colours", icon: "🎨", desc: "Brand colours across the site" },
   { href: "/admin/logo", label: "Logo", icon: "🔶", desc: "Logo image, text & size" },
