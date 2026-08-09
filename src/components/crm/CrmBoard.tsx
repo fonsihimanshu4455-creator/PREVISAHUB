@@ -17,7 +17,16 @@ import {
   VisaStage,
 } from "@/lib/crm-data";
 
-type View = "dashboard" | "students" | "pipeline" | "tasks";
+type View = "dashboard" | "students" | "pipeline" | "tasks" | "payments";
+
+export type FeeSummary = {
+  studentId: string; studentName: string; counsellor: string;
+  totalFee: number; paid: number; pending: number;
+};
+export type PaymentRec = {
+  id: string; studentId: string; studentName: string; amount: number;
+  method: string; purpose: string; paidOn: string; note: string;
+};
 
 type NewStudentInput = {
   name: string;
@@ -51,6 +60,8 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [tasks, setTasks] = useState<Task[]>([]);
   const [mode, setMode] = useState<"db" | "demo" | "loading">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [fees, setFees] = useState<FeeSummary[]>([]);
+  const [payments, setPayments] = useState<PaymentRec[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -69,6 +80,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         if (Array.isArray(rs.students)) setStudents(rs.students);
         if (Array.isArray(rt.tasks)) setTasks(rt.tasks);
         setMode(rs.mode === "db" ? "db" : "demo");
+        loadMoney();
       } catch (e) {
         if (alive) {
           setError(String(e));
@@ -111,6 +123,30 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     await api(`/api/tasks/${id}`, "PATCH", { done });
   }
 
+  async function loadMoney() {
+    try {
+      const [rp, rr] = await Promise.all([
+        fetch("/api/payments").then((r) => r.json()),
+        fetch("/api/reports").then((r) => r.json()),
+      ]);
+      if (Array.isArray(rp.payments)) setPayments(rp.payments);
+      if (Array.isArray(rr.fees)) setFees(rr.fees);
+    } catch {
+      // Money data is optional here — the rest of the CRM still works.
+    }
+  }
+
+  async function addPayment(body: Record<string, unknown>) {
+    const r = await api("/api/payments", "POST", body);
+    await loadMoney();
+    return r;
+  }
+
+  async function removePayment(id: string) {
+    await api(`/api/payments/${id}`, "DELETE");
+    await loadMoney();
+  }
+
   const pendingTasks = tasks.filter((t) => !t.done && t.due <= TODAY).length;
 
   const tabs: { key: View; label: string; badge?: number }[] = [
@@ -118,6 +154,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     { key: "students", label: "Students" },
     { key: "pipeline", label: "Visa Pipeline" },
     { key: "tasks", label: "Daily Tasks", badge: pendingTasks },
+    { key: "payments", label: "Payments" },
   ];
 
   return (
@@ -177,6 +214,15 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       )}
       {view === "pipeline" && <Pipeline students={students} onMove={moveStudent} />}
       {view === "tasks" && <Tasks tasks={tasks} onToggle={toggleTask} />}
+      {view === "payments" && (
+        <Payments
+          students={students}
+          fees={fees}
+          payments={payments}
+          onAdd={addPayment}
+          onDelete={removePayment}
+        />
+      )}
     </div>
   );
 }
@@ -1216,5 +1262,296 @@ function CheckMark() {
     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
       <path d="M20 6L9 17l-5-5" />
     </svg>
+  );
+}
+
+// =========================================================================
+// PAYMENTS
+// =========================================================================
+function inr(n: number): string {
+  return "₹" + Math.round(n).toLocaleString("en-IN");
+}
+
+function Payments({
+  students,
+  fees,
+  payments,
+  onAdd,
+  onDelete,
+}: {
+  students: Student[];
+  fees: FeeSummary[];
+  payments: PaymentRec[];
+  onAdd: (body: Record<string, unknown>) => Promise<{ error?: string }>;
+  onDelete: (id: string) => void | Promise<void>;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [showFee, setShowFee] = useState(false);
+
+  const collected = payments.reduce((a, p) => a + p.amount, 0);
+  const pending = fees.reduce((a, f) => a + f.pending, 0);
+  const billed = fees.reduce((a, f) => a + f.totalFee, 0);
+  const owing = fees.filter((f) => f.pending > 0).sort((a, b) => b.pending - a.pending);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Collected</div>
+          <div className="mt-1 font-display text-2xl font-extrabold text-green-600">{inr(collected)}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Pending</div>
+          <div className="mt-1 font-display text-2xl font-extrabold text-red-600">{inr(pending)}</div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Billed</div>
+          <div className="mt-1 font-display text-2xl font-extrabold text-slate-800">{inr(billed)}</div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setShowAdd(true)}
+          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+        >
+          + Record Payment
+        </button>
+        <button
+          onClick={() => setShowFee(true)}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+        >
+          Set student fee
+        </button>
+      </div>
+
+      {/* Outstanding */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+          Pending Dues
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-2.5 font-semibold">Student</th>
+                <th className="px-4 py-2.5 font-semibold">Fee</th>
+                <th className="px-4 py-2.5 font-semibold">Paid</th>
+                <th className="px-4 py-2.5 font-semibold">Pending</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {owing.map((f) => (
+                <tr key={f.studentId} className="hover:bg-orange-50/40">
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">{f.studentName}</td>
+                  <td className="px-4 py-2.5">{inr(f.totalFee)}</td>
+                  <td className="px-4 py-2.5 text-green-600">{inr(f.paid)}</td>
+                  <td className="px-4 py-2.5 font-bold text-red-600">{inr(f.pending)}</td>
+                </tr>
+              ))}
+              {owing.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
+                    No pending dues. Set a fee on a student to start tracking.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Recent payments */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+          Recent Payments
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-2.5 font-semibold">Date</th>
+                <th className="px-4 py-2.5 font-semibold">Student</th>
+                <th className="px-4 py-2.5 font-semibold">Purpose</th>
+                <th className="px-4 py-2.5 font-semibold">Method</th>
+                <th className="px-4 py-2.5 font-semibold">Amount</th>
+                <th className="px-4 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {payments.slice(0, 25).map((p) => (
+                <tr key={p.id} className="hover:bg-orange-50/40">
+                  <td className="px-4 py-2.5 text-slate-500">{p.paidOn}</td>
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">{p.studentName}</td>
+                  <td className="px-4 py-2.5">{p.purpose}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{p.method}</td>
+                  <td className="px-4 py-2.5 font-bold text-green-600">{inr(p.amount)}</td>
+                  <td className="px-4 py-2.5 text-right">
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete this ${inr(p.amount)} payment?`)) onDelete(p.id);
+                      }}
+                      className="text-xs font-semibold text-slate-400 hover:text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {payments.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                    No payments recorded yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showAdd && (
+        <PaymentModal
+          students={students}
+          onClose={() => setShowAdd(false)}
+          onSave={onAdd}
+        />
+      )}
+      {showFee && (
+        <PaymentModal
+          students={students}
+          feeMode
+          onClose={() => setShowFee(false)}
+          onSave={onAdd}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentModal({
+  students,
+  feeMode,
+  onClose,
+  onSave,
+}: {
+  students: Student[];
+  feeMode?: boolean;
+  onClose: () => void;
+  onSave: (body: Record<string, unknown>) => Promise<{ error?: string }>;
+}) {
+  const [studentId, setStudentId] = useState(students[0]?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("UPI");
+  const [purpose, setPurpose] = useState("Application");
+  const [paidOn, setPaidOn] = useState(TODAY);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    const body = feeMode
+      ? { studentId, totalFee: Number(amount) }
+      : { studentId, amount: Number(amount), method, purpose, paidOn, note };
+    const r = await onSave(body);
+    setBusy(false);
+    if (r?.error) setError(r.error);
+    else onClose();
+  }
+
+  return (
+    <Modal title={feeMode ? "Set Total Fee" : "Record Payment"} onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Student">
+          <select
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          >
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.id})
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label={feeMode ? "Total agreed fee (₹)" : "Amount received (₹)"}>
+          <input
+            type="number"
+            min="0"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 85000"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          />
+        </Field>
+
+        {!feeMode && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Purpose">
+                <select
+                  value={purpose}
+                  onChange={(e) => setPurpose(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                >
+                  {["Consultation", "Application", "Coaching", "Visa Fee", "Other"].map((p) => (
+                    <option key={p}>{p}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Method">
+                <select
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                >
+                  {["Cash", "UPI", "Bank Transfer", "Card", "Cheque"].map((m) => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="Received on">
+              <input
+                type="date"
+                value={paidOn}
+                onChange={(e) => setPaidOn(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              />
+            </Field>
+            <Field label="Note (optional)">
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="e.g. 2nd instalment"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              />
+            </Field>
+          </>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={busy || !studentId || !amount}
+            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+          >
+            {busy ? "Saving…" : feeMode ? "Save fee" : "Record payment"}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

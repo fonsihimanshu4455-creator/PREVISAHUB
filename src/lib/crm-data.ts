@@ -412,3 +412,8 @@ export function relativeDue(iso: string): string {
   if (d < 0) return `${Math.abs(d)} days ago`;
   return `In ${d} days`;
 }
+
+/** Rupee formatting, used by both server reports and client tables. */
+export function formatINR(n: number): string {
+  return "₹" + Math.round(n).toLocaleString("en-IN");
+}

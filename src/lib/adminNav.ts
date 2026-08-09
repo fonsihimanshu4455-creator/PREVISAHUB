@@ -13,6 +13,8 @@ export const adminNav: AdminNavItem[] = [
 
   // --- Students / business --------------------------------------------
   { href: "/admin/crm", label: "Students", icon: "🎓", desc: "Visa status, IELTS/PTE scores & follow-ups", group: "Students" },
+  { href: "/admin/sales", label: "Sales & Payments", icon: "💰", desc: "Fees collected, pending dues & revenue", group: "Students" },
+  { href: "/admin/import", label: "Import Students", icon: "📥", desc: "Bulk upload from Excel or CSV", group: "Students" },
   { href: "/admin/staff", label: "Staff Accounts", icon: "👥", desc: "Counsellor logins & access", group: "Students" },
 
   // --- Website editing -------------------------------------------------
