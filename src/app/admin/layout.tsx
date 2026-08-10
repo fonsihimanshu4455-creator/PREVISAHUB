@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAdminAuth } from "@/lib/adminAuth";
@@ -11,6 +11,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { authed, ready, login, logout } = useAdminAuth();
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const websiteHrefs = adminNav
+    .filter((i) => i.group === "Website")
+    .map((i) => i.href);
+  const onWebsitePage = websiteHrefs.some((h) => pathname.startsWith(h));
+  const [websiteOpen, setWebsiteOpen] = useState(onWebsitePage);
+
+  // The layout persists across navigation, so opening a website page from
+  // elsewhere has to expand the group too — not just a fresh page load.
+  useEffect(() => {
+    if (onWebsitePage) setWebsiteOpen(true);
+  }, [onWebsitePage]);
 
   if (!ready) {
     return (
@@ -45,6 +56,70 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {adminNavGroups.map((group) => {
             const items = adminNav.filter((i) => i.group === group);
             if (!items.length) return null;
+
+            const link = (item: (typeof adminNav)[number]) => {
+              const active =
+                item.href === "/admin"
+                  ? pathname === "/admin"
+                  : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  // The root layout reads site content from the database on
+                  // every render, so prefetching all the sidebar links would
+                  // fire a server render (and a query) each, per page view.
+                  prefetch={false}
+                  onClick={() => setMenuOpen(false)}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
+                    active
+                      ? "bg-orange-500 text-white font-semibold"
+                      : "text-slate-300 hover:bg-white/10"
+                  }`}
+                >
+                  <span className="text-base">{item.icon}</span>
+                  {item.label}
+                </Link>
+              );
+            };
+
+            // Website editing is eleven pages that are visited occasionally,
+            // so they collapse into one entry instead of burying the daily
+            // student work below a long list.
+            if (group === "Website") {
+              return (
+                <div key={group} className="pt-2">
+                  <button
+                    onClick={() => setWebsiteOpen((o) => !o)}
+                    aria-expanded={websiteOpen}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10"
+                  >
+                    <span className="text-base">🌐</span>
+                    <span className="font-semibold">Edit Website</span>
+                    <span className="ml-auto text-[10px] text-slate-500">
+                      {items.length}
+                    </span>
+                    <svg
+                      className={`h-3.5 w-3.5 transition-transform ${
+                        websiteOpen ? "rotate-180" : ""
+                      }`}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                    >
+                      <path d="M6 9l6 6 6-6" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  {websiteOpen && (
+                    <div className="mt-1 space-y-1 border-l border-white/10 pl-2">
+                      {items.map(link)}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <div key={group} className="pb-1">
                 {/* "Main" is a single item, so a heading over it would be noise. */}
@@ -53,31 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     {group}
                   </div>
                 )}
-                {items.map((item) => {
-                  const active =
-                    item.href === "/admin"
-                      ? pathname === "/admin"
-                      : pathname.startsWith(item.href);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      // The root layout reads site content from the database on
-                      // every render, so prefetching all 15 sidebar links would
-                      // fire 15 server renders (and 15 queries) per page view.
-                      prefetch={false}
-                      onClick={() => setMenuOpen(false)}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition ${
-                        active
-                          ? "bg-orange-500 text-white font-semibold"
-                          : "text-slate-300 hover:bg-white/10"
-                      }`}
-                    >
-                      <span className="text-base">{item.icon}</span>
-                      {item.label}
-                    </Link>
-                  );
-                })}
+                {items.map(link)}
               </div>
             );
           })}

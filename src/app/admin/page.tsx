@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import Link from "next/link";
-import { adminNav } from "@/lib/adminNav";
+import { adminNav, adminNavGroups } from "@/lib/adminNav";
 import { useSiteContent } from "@/lib/SiteContentContext";
 
 export default function AdminDashboard() {
@@ -29,16 +29,22 @@ export default function AdminDashboard() {
     }
   };
 
-  const cards = adminNav.filter((n) => n.href !== "/admin");
+  // Grouped the same way as the sidebar: daily student work first, website
+  // editing below it, rather than sixteen cards in one undifferentiated grid.
+  const groups = adminNavGroups
+    .map((g) => ({
+      group: g,
+      items: adminNav.filter((n) => n.group === g && n.href !== "/admin"),
+    }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-display text-2xl font-bold text-slate-800">Welcome 👋</h1>
         <p className="mt-1 text-slate-500">
-          Edit every part of your website below. Each section has its own page —
-          change text, photos, the logo, colours and sizes, then hit{" "}
-          <span className="font-semibold">Save</span>.
+          Manage students, fees, tests and attendance — and edit every part of
+          the website. Each section has its own page.
         </p>
       </div>
 
@@ -59,27 +65,34 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="grid sm:grid-cols-2 gap-4">
-        {cards.map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:border-orange-300 hover:shadow-md transition"
-          >
-            <div className="flex items-start gap-4">
-              <div className="h-11 w-11 flex items-center justify-center rounded-xl bg-orange-50 text-2xl">
-                {c.icon}
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-800 group-hover:text-orange-600">
-                  {c.label}
-                </h3>
-                <p className="text-sm text-slate-500 mt-0.5">{c.desc}</p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+      {groups.map(({ group, items }) => (
+        <div key={group}>
+          <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-400">
+            {group === "Website" ? "Edit Website" : group}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {items.map((c) => (
+              <Link
+                key={c.href}
+                href={c.href}
+                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-300 hover:shadow-md"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-2xl">
+                    {c.icon}
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800 group-hover:text-orange-600">
+                      {c.label}
+                    </h3>
+                    <p className="mt-0.5 text-sm text-slate-500">{c.desc}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      ))}
 
       {/* Backup / restore */}
       <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
