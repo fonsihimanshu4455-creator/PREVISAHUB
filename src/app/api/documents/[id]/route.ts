@@ -4,9 +4,23 @@ import { deleteDocument, documentCounsellor, readDocument } from "@/lib/document
 
 export const dynamic = "force-dynamic";
 
-/** Download a file. Staff may only fetch documents of their own students. */
+/**
+ * Types that are safe to render in the browser from our own origin. Anything
+ * else — HTML, SVG, Office files — is forced to download instead: served
+ * inline, a crafted file could run script on this origin and reach the admin
+ * session cookie.
+ */
+const INLINE_SAFE = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+
+/** Download a file, or view it in the browser with ?view=1. */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   const session = await requireCrmAccess();
@@ -25,14 +39,22 @@ export async function GET(
     );
   }
 
+  const wantsView = new URL(req.url).searchParams.get("view") === "1";
+  const inline = wantsView && INLINE_SAFE.has(doc.mime);
+
   return new NextResponse(new Uint8Array(doc.data), {
     headers: {
       "Content-Type": doc.mime,
-      // `attachment` so a PDF or image downloads rather than rendering in a
-      // tab from our own origin.
-      "Content-Disposition": `attachment; filename="${doc.name.replace(/"/g, "")}"`,
+      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${doc.name.replace(
+        /"/g,
+        ""
+      )}"`,
       "Content-Length": String(doc.data.length),
       "Cache-Control": "private, no-store",
+      // Never let the browser second-guess the stored type…
+      "X-Content-Type-Options": "nosniff",
+      // …and give the response no privileges of its own if it is rendered.
+      "Content-Security-Policy": "default-src 'none'; img-src 'self' data:; object-src 'none'; sandbox",
     },
   });
 }

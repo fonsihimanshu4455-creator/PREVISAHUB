@@ -2245,6 +2245,7 @@ function Documents({ students }: { students: Student[] }) {
   const [loading, setLoading] = useState(true);
   const [filterStudent, setFilterStudent] = useState("All");
   const [showUpload, setShowUpload] = useState(false);
+  const [viewing, setViewing] = useState<DocMeta | null>(null);
 
   async function load() {
     setLoading(true);
@@ -2328,6 +2329,14 @@ function Documents({ students }: { students: Student[] }) {
                     {d.uploadedAt.slice(0, 10)} · {d.uploadedBy}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
+                    {canPreview(d.mime) && (
+                      <button
+                        onClick={() => setViewing(d)}
+                        className="mr-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
+                      >
+                        View
+                      </button>
+                    )}
                     <a
                       href={`/api/documents/${d.id}`}
                       className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
@@ -2362,6 +2371,8 @@ function Documents({ students }: { students: Student[] }) {
           </table>
         </div>
       </div>
+
+      {viewing && <ViewerModal doc={viewing} onClose={() => setViewing(null)} />}
 
       {showUpload && (
         <UploadModal
@@ -2488,5 +2499,74 @@ function UploadModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Types the server will render inline; everything else downloads instead. */
+function canPreview(mime: string): boolean {
+  return ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"].includes(
+    mime
+  );
+}
+
+function ViewerModal({ doc, onClose }: { doc: DocMeta; onClose: () => void }) {
+  const src = `/api/documents/${doc.id}?view=1`;
+  const isImage = doc.mime.startsWith("image/");
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-slate-900/70 p-2 backdrop-blur-sm sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-semibold text-slate-800">{doc.name}</div>
+            <div className="text-xs text-slate-500">
+              {doc.studentName} · {doc.kind} · {fileSize(doc.size)}
+            </div>
+          </div>
+          <a
+            href={`/api/documents/${doc.id}`}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Download
+          </a>
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto bg-slate-100">
+          {isImage ? (
+            <div className="flex min-h-full items-center justify-center p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt={doc.name}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : (
+            <iframe src={src} title={doc.name} className="h-full w-full border-0" />
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
