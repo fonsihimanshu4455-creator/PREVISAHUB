@@ -17,7 +17,24 @@ import {
   VisaStage,
 } from "@/lib/crm-data";
 
-type View = "dashboard" | "students" | "pipeline" | "tasks" | "payments";
+type View =
+  | "dashboard" | "students" | "pipeline" | "tasks" | "payments"
+  | "tests" | "attendance";
+
+export type TestRec = {
+  id: string; studentId: string; studentName: string; exam: string;
+  kind: string; section: string; score: number; maxScore: number;
+  takenOn: string; note: string;
+};
+export type Progress = {
+  studentId: string; studentName: string; section: string;
+  latest: number; maxScore: number; attempts: number; best: number;
+};
+export type AttRec = { studentId: string; studentName: string; status: string };
+export type AttSummary = {
+  studentId: string; studentName: string; present: number; absent: number;
+  late: number; leave: number; total: number; percent: number;
+};
 
 export type FeeSummary = {
   studentId: string; studentName: string; counsellor: string;
@@ -166,6 +183,8 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     { key: "pipeline", label: "Visa Pipeline" },
     { key: "tasks", label: "Daily Tasks", badge: pendingTasks },
     { key: "payments", label: "Payments" },
+    { key: "tests", label: "Tests" },
+    { key: "attendance", label: "Attendance" },
   ];
 
   return (
@@ -225,6 +244,8 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       )}
       {view === "pipeline" && <Pipeline students={students} onMove={moveStudent} />}
       {view === "tasks" && <Tasks tasks={tasks} onToggle={toggleTask} />}
+      {view === "tests" && <Tests students={students} />}
+      {view === "attendance" && <Attendance students={students} />}
       {view === "payments" && (
         <Payments
           students={students}
@@ -1569,5 +1590,518 @@ function PaymentModal({
         </div>
       </div>
     </Modal>
+  );
+}
+
+// =========================================================================
+// TESTS  — weekly / sessional practice scores, whole exam or one section
+// =========================================================================
+function Tests({ students }: { students: Student[] }) {
+  const [tests, setTests] = useState<TestRec[]>([]);
+  const [progress, setProgress] = useState<Progress[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [filterStudent, setFilterStudent] = useState("All");
+
+  async function load() {
+    setLoading(true);
+    try {
+      const d = await fetch("/api/tests").then((r) => r.json());
+      if (Array.isArray(d.tests)) setTests(d.tests);
+      if (Array.isArray(d.progress)) setProgress(d.progress);
+    } catch {
+      /* leave the lists empty; the page still renders */
+    }
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function remove(id: string) {
+    if (!confirm("Delete this test record?")) return;
+    await fetch(`/api/tests/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  const shown =
+    filterStudent === "All"
+      ? tests
+      : tests.filter((t) => t.studentId === filterStudent);
+
+  // Latest score per section, for whoever is selected.
+  const cards = progress.filter(
+    (p) => filterStudent === "All" || p.studentId === filterStudent
+  );
+  const bySection = SECTIONS.map((sec) => {
+    const rows = cards.filter((c) => c.section === sec);
+    if (!rows.length) return null;
+    const avg = rows.reduce((a, r) => a + (r.latest / r.maxScore) * 100, 0) / rows.length;
+    return { section: sec, avg: Math.round(avg), count: rows.length };
+  }).filter(Boolean) as { section: string; avg: number; count: number }[];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={filterStudent}
+          onChange={(e) => setFilterStudent(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+        >
+          <option value="All">All students</option>
+          {students.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setShowAdd(true)}
+          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+        >
+          + Record Test
+        </button>
+      </div>
+
+      {bySection.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {bySection.map((b) => (
+            <div key={b.section} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                {b.section}
+              </div>
+              <div
+                className={`mt-1 font-display text-2xl font-extrabold ${
+                  b.avg >= 70 ? "text-green-600" : b.avg >= 50 ? "text-amber-600" : "text-red-600"
+                }`}
+              >
+                {b.avg}%
+              </div>
+              <div className="text-xs text-slate-500">
+                latest, {b.count} student{b.count === 1 ? "" : "s"}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3 font-semibold">Date</th>
+                <th className="px-4 py-3 font-semibold">Student</th>
+                <th className="px-4 py-3 font-semibold">Type</th>
+                <th className="px-4 py-3 font-semibold">Section</th>
+                <th className="px-4 py-3 font-semibold">Score</th>
+                <th className="px-4 py-3 font-semibold">Note</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {shown.map((t) => {
+                const pct = Math.round((t.score / t.maxScore) * 100);
+                return (
+                  <tr key={t.id} className="hover:bg-orange-50/40">
+                    <td className="whitespace-nowrap px-4 py-3 text-slate-500">{t.takenOn}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800">{t.studentName}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+                        {t.exam} · {t.kind}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">{t.section}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`font-bold ${
+                          pct >= 70 ? "text-green-600" : pct >= 50 ? "text-amber-600" : "text-red-600"
+                        }`}
+                      >
+                        {t.score}
+                      </span>
+                      <span className="text-xs text-slate-400"> / {t.maxScore}</span>
+                    </td>
+                    <td className="max-w-[220px] truncate px-4 py-3 text-slate-500">{t.note}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => remove(t.id)}
+                        className="text-xs font-semibold text-slate-400 hover:text-red-600"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!loading && shown.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                    No test records yet — add the first one above.
+                  </td>
+                </tr>
+              )}
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showAdd && (
+        <AddTestModal
+          students={students}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => {
+            setShowAdd(false);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const SECTIONS = ["Overall", "Speaking", "Writing", "Reading", "Listening"];
+
+function AddTestModal({
+  students,
+  onClose,
+  onSaved,
+}: {
+  students: Student[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [studentId, setStudentId] = useState(students[0]?.id ?? "");
+  const [exam, setExam] = useState("PTE");
+  const [kind, setKind] = useState("Weekly");
+  const [section, setSection] = useState("Speaking");
+  const [score, setScore] = useState("");
+  const [takenOn, setTakenOn] = useState(TODAY);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const maxScore = exam === "PTE" ? 90 : 9;
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    const r = await api("/api/tests", "POST", {
+      studentId, exam, kind, section,
+      score: Number(score), maxScore, takenOn, note,
+    });
+    setBusy(false);
+    if (r?.error) setError(r.error);
+    else onSaved();
+  }
+
+  return (
+    <Modal title="Record Test Score" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Student">
+          <select
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          >
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.id})
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Exam">
+            <select
+              value={exam}
+              onChange={(e) => setExam(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            >
+              <option>PTE</option>
+              <option>IELTS</option>
+            </select>
+          </Field>
+          <Field label="Test type">
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            >
+              {["Weekly", "Sessional", "Mock", "Practice"].map((k) => (
+                <option key={k}>{k}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        <Field label="Section">
+          <div className="flex flex-wrap gap-2">
+            {SECTIONS.map((sec) => (
+              <button
+                key={sec}
+                type="button"
+                onClick={() => setSection(sec)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  section === sec
+                    ? "bg-slate-800 text-white"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {sec}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={`Score (out of ${maxScore})`}>
+            <input
+              type="number"
+              step={exam === "PTE" ? 1 : 0.5}
+              min="0"
+              max={maxScore}
+              value={score}
+              onChange={(e) => setScore(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            />
+          </Field>
+          <Field label="Taken on">
+            <input
+              type="date"
+              value={takenOn}
+              onChange={(e) => setTakenOn(e.target.value)}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            />
+          </Field>
+        </div>
+
+        <Field label="Note (optional)">
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. fluency improving, needs pronunciation work"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          />
+        </Field>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={busy || !studentId || score === ""}
+            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+          >
+            {busy ? "Saving…" : "Save score"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// =========================================================================
+// ATTENDANCE — mark a whole batch for one day, and see each student's rate
+// =========================================================================
+const ATT_STATUSES = ["Present", "Absent", "Late", "Leave"] as const;
+
+function Attendance({ students }: { students: Student[] }) {
+  const [date, setDate] = useState(TODAY);
+  const [marks, setMarks] = useState<Record<string, string>>({});
+  const [summary, setSummary] = useState<AttSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState("");
+
+  async function load(d: string) {
+    setLoading(true);
+    setSaved("");
+    try {
+      const r = await fetch(`/api/attendance?date=${d}`).then((x) => x.json());
+      const m: Record<string, string> = {};
+      for (const rec of r.records ?? []) m[rec.studentId] = rec.status;
+      setMarks(m);
+      if (Array.isArray(r.summary)) setSummary(r.summary);
+    } catch {
+      /* keep whatever is on screen */
+    }
+    setLoading(false);
+  }
+  useEffect(() => {
+    load(date);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date]);
+
+  function set(studentId: string, status: string) {
+    setMarks((m) => ({ ...m, [studentId]: status }));
+    setSaved("");
+  }
+
+  function markAll(status: string) {
+    const m: Record<string, string> = {};
+    for (const s of students) m[s.id] = status;
+    setMarks(m);
+    setSaved("");
+  }
+
+  async function save() {
+    setSaving(true);
+    const entries = Object.entries(marks).map(([studentId, status]) => ({
+      studentId,
+      status,
+    }));
+    const r = await api("/api/attendance", "POST", { date, entries });
+    setSaving(false);
+    setSaved(r?.error ? r.error : `Saved ${r.saved?.length ?? 0} students for ${date}.`);
+    load(date);
+  }
+
+  const counts = ATT_STATUSES.map((st) => ({
+    st,
+    n: Object.values(marks).filter((v) => v === st).length,
+  }));
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+        />
+        <button
+          onClick={() => markAll("Present")}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+        >
+          Mark all present
+        </button>
+        <button
+          onClick={save}
+          disabled={saving || Object.keys(marks).length === 0}
+          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-40"
+        >
+          {saving ? "Saving…" : "Save attendance"}
+        </button>
+        {counts.map((c) => (
+          <span key={c.st} className="text-xs text-slate-500">
+            {c.st}: <b className="text-slate-700">{c.n}</b>
+          </span>
+        ))}
+      </div>
+
+      {saved && (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-800">
+          {saved}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+          Mark attendance · {date}
+        </div>
+        <div className="divide-y divide-slate-100">
+          {students.map((s) => (
+            <div key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+              <Avatar name={s.name} />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-800">{s.name}</div>
+                <div className="text-xs text-slate-400">{s.id}</div>
+              </div>
+              <div className="flex gap-1.5">
+                {ATT_STATUSES.map((st) => {
+                  const on = marks[s.id] === st;
+                  const tone =
+                    st === "Present" ? "bg-green-500" :
+                    st === "Absent" ? "bg-red-500" :
+                    st === "Late" ? "bg-amber-500" : "bg-slate-500";
+                  return (
+                    <button
+                      key={st}
+                      onClick={() => set(s.id, st)}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                        on
+                          ? `${tone} text-white`
+                          : "bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50"
+                      }`}
+                    >
+                      {st}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {students.length === 0 && (
+            <div className="px-4 py-10 text-center text-sm text-slate-400">
+              No students to mark.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+          Attendance Record
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-2.5 font-semibold">Student</th>
+                <th className="px-4 py-2.5 font-semibold">Present</th>
+                <th className="px-4 py-2.5 font-semibold">Absent</th>
+                <th className="px-4 py-2.5 font-semibold">Late</th>
+                <th className="px-4 py-2.5 font-semibold">Leave</th>
+                <th className="px-4 py-2.5 font-semibold">Rate</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {summary.map((a) => (
+                <tr key={a.studentId} className="hover:bg-orange-50/40">
+                  <td className="px-4 py-2.5 font-semibold text-slate-800">{a.studentName}</td>
+                  <td className="px-4 py-2.5 text-green-600">{a.present}</td>
+                  <td className="px-4 py-2.5 text-red-600">{a.absent}</td>
+                  <td className="px-4 py-2.5 text-amber-600">{a.late}</td>
+                  <td className="px-4 py-2.5 text-slate-500">{a.leave}</td>
+                  <td className="px-4 py-2.5">
+                    <span
+                      className={`font-bold ${
+                        a.percent >= 75 ? "text-green-600" : a.percent >= 50 ? "text-amber-600" : "text-red-600"
+                      }`}
+                    >
+                      {a.percent}%
+                    </span>
+                    <span className="text-xs text-slate-400"> of {a.total}</span>
+                  </td>
+                </tr>
+              ))}
+              {!loading && summary.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                    No attendance marked yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
