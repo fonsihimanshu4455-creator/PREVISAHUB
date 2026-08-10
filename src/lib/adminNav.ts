@@ -13,6 +13,9 @@ export const adminNav: AdminNavItem[] = [
 
   // --- Students / business --------------------------------------------
   { href: "/admin/crm", label: "Students", icon: "🎓", desc: "Visa status, IELTS/PTE scores & follow-ups", group: "Students" },
+  { href: "/admin/crm?tab=tests", label: "Tests", icon: "📝", desc: "Weekly & sessional PTE/IELTS scores", group: "Students" },
+  { href: "/admin/crm?tab=attendance", label: "Attendance", icon: "📋", desc: "Daily class attendance & rates", group: "Students" },
+  { href: "/admin/crm?tab=documents", label: "Documents", icon: "📎", desc: "Passports, offer letters & score reports", group: "Students" },
   { href: "/admin/sales", label: "Sales & Payments", icon: "💰", desc: "Fees collected, pending dues & revenue", group: "Students" },
   { href: "/admin/import", label: "Import Students", icon: "📥", desc: "Bulk upload from Excel or CSV", group: "Students" },
   { href: "/admin/staff", label: "Staff Accounts", icon: "👥", desc: "Counsellor logins & access", group: "Students" },

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAdminAuth } from "@/lib/adminAuth";
 import { adminNav, adminNavGroups } from "@/lib/adminNav";
 import LoginScreen from "@/components/admin/LoginScreen";
@@ -10,12 +10,14 @@ import LoginScreen from "@/components/admin/LoginScreen";
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { authed, ready, login, logout } = useAdminAuth();
   const pathname = usePathname();
+  const currentTab = useSearchParams().get("tab") ?? "";
   const [menuOpen, setMenuOpen] = useState(false);
   const websiteHrefs = adminNav
     .filter((i) => i.group === "Website")
     .map((i) => i.href);
   const onWebsitePage = websiteHrefs.some((h) => pathname.startsWith(h));
   const [websiteOpen, setWebsiteOpen] = useState(onWebsitePage);
+  const [studentsOpen, setStudentsOpen] = useState(true);
 
   // The layout persists across navigation, so opening a website page from
   // elsewhere has to expand the group too — not just a fresh page load.
@@ -58,10 +60,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             if (!items.length) return null;
 
             const link = (item: (typeof adminNav)[number]) => {
+              // Entries like /admin/crm?tab=tests share a pathname, so the
+              // active one is decided by the tab as well as the path.
+              const [itemPath, itemQuery = ""] = item.href.split("?");
+              const itemTab = new URLSearchParams(itemQuery).get("tab") ?? "";
               const active =
                 item.href === "/admin"
                   ? pathname === "/admin"
-                  : pathname.startsWith(item.href);
+                  : itemPath === "/admin/crm"
+                  ? pathname === "/admin/crm" && currentTab === itemTab
+                  : pathname.startsWith(itemPath);
               return (
                 <Link
                   key={item.href}
@@ -86,32 +94,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             // Website editing is eleven pages that are visited occasionally,
             // so they collapse into one entry instead of burying the daily
             // student work below a long list.
-            if (group === "Website") {
+            if (group === "Students" || group === "Website") {
+              const isWebsite = group === "Website";
+              const open = isWebsite ? websiteOpen : studentsOpen;
+              const toggle = () =>
+                isWebsite ? setWebsiteOpen((o) => !o) : setStudentsOpen((o) => !o);
               return (
                 <div key={group} className="pt-2">
                   <button
-                    onClick={() => setWebsiteOpen((o) => !o)}
-                    aria-expanded={websiteOpen}
+                    onClick={toggle}
+                    aria-expanded={open}
                     className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/10"
                   >
-                    <span className="text-base">🌐</span>
-                    <span className="font-semibold">Edit Website</span>
+                    <span className="text-base">{isWebsite ? "🌐" : "🎓"}</span>
+                    <span className="font-semibold">
+                      {isWebsite ? "Edit Website" : "Students"}
+                    </span>
                     <span className="ml-auto text-[10px] text-slate-500">
                       {items.length}
                     </span>
                     <svg
-                      className={`h-3.5 w-3.5 transition-transform ${
-                        websiteOpen ? "rotate-180" : ""
-                      }`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
+                      className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+                      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
                     >
                       <path d="M6 9l6 6 6-6" strokeLinecap="round" />
                     </svg>
                   </button>
-                  {websiteOpen && (
+                  {open && (
                     <div className="mt-1 space-y-1 border-l border-white/10 pl-2">
                       {items.map(link)}
                     </div>

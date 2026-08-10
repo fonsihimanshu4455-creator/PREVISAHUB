@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   COUNTRIES,
   Country,
@@ -19,7 +20,12 @@ import {
 
 type View =
   | "dashboard" | "students" | "pipeline" | "tasks" | "payments"
-  | "tests" | "attendance";
+  | "tests" | "attendance" | "documents";
+
+export type DocMeta = {
+  id: string; studentId: string; studentName: string; name: string;
+  kind: string; mime: string; size: number; uploadedBy: string; uploadedAt: string;
+};
 
 export type TestRec = {
   id: string; studentId: string; studentName: string; exam: string;
@@ -71,8 +77,24 @@ const TODAY_LABEL = new Date(TODAY + "T00:00:00Z").toLocaleDateString("en-GB", {
   timeZone: "UTC",
 });
 
+const VIEWS: View[] = [
+  "dashboard", "students", "pipeline", "tasks", "payments",
+  "tests", "attendance", "documents",
+];
+
 export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }) {
-  const [view, setView] = useState<View>("dashboard");
+  const params = useSearchParams();
+  const tabParam = params.get("tab");
+  const [view, setView] = useState<View>(
+    VIEWS.includes(tabParam as View) ? (tabParam as View) : "dashboard"
+  );
+
+  // Sidebar links point at ?tab=…, and the layout persists across those
+  // navigations, so the tab has to follow the URL rather than only the
+  // initial render.
+  useEffect(() => {
+    if (VIEWS.includes(tabParam as View)) setView(tabParam as View);
+  }, [tabParam]);
   const [students, setStudents] = useState<Student[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [mode, setMode] = useState<"db" | "demo" | "loading">("loading");
@@ -190,6 +212,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     { key: "payments", label: "Payments" },
     { key: "tests", label: "Tests" },
     { key: "attendance", label: "Attendance" },
+    { key: "documents", label: "Documents" },
   ];
 
   return (
@@ -257,6 +280,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       {view === "tasks" && <Tasks tasks={tasks} onToggle={toggleTask} />}
       {view === "tests" && <Tests students={students} />}
       {view === "attendance" && <Attendance students={students} />}
+      {view === "documents" && <Documents students={students} />}
       {view === "payments" && (
         <Payments
           students={students}
@@ -2199,5 +2223,270 @@ function Attendance({ students }: { students: Student[] }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// =========================================================================
+// DOCUMENTS — upload once, download whenever it is needed
+// =========================================================================
+const DOC_KIND_LIST = [
+  "Passport", "Photo", "Academics", "Score Report",
+  "Offer Letter", "Funds Proof", "Visa", "Other",
+];
+
+function fileSize(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function Documents({ students }: { students: Student[] }) {
+  const [docs, setDocs] = useState<DocMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStudent, setFilterStudent] = useState("All");
+  const [showUpload, setShowUpload] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const d = await fetch("/api/documents").then((r) => r.json());
+      if (Array.isArray(d.documents)) setDocs(d.documents);
+    } catch {
+      /* leave the list as-is */
+    }
+    setLoading(false);
+  }
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function remove(d: DocMeta) {
+    if (!confirm(`Delete "${d.name}"? This cannot be undone.`)) return;
+    await fetch(`/api/documents/${d.id}`, { method: "DELETE" });
+    load();
+  }
+
+  const shown =
+    filterStudent === "All" ? docs : docs.filter((d) => d.studentId === filterStudent);
+  const totalSize = shown.reduce((a, d) => a + d.size, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={filterStudent}
+          onChange={(e) => setFilterStudent(e.target.value)}
+          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+        >
+          <option value="All">All students</option>
+          {students.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setShowUpload(true)}
+          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+        >
+          + Upload Document
+        </button>
+        <span className="text-xs text-slate-500">
+          {shown.length} file{shown.length === 1 ? "" : "s"} · {fileSize(totalSize)}
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-4 py-3 font-semibold">File</th>
+                <th className="px-4 py-3 font-semibold">Student</th>
+                <th className="px-4 py-3 font-semibold">Type</th>
+                <th className="px-4 py-3 font-semibold">Size</th>
+                <th className="px-4 py-3 font-semibold">Uploaded</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {shown.map((d) => (
+                <tr key={d.id} className="hover:bg-orange-50/40">
+                  <td className="max-w-[260px] px-4 py-3">
+                    <div className="truncate font-semibold text-slate-800">{d.name}</div>
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">{d.studentName}</td>
+                  <td className="px-4 py-3">
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+                      {d.kind}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">
+                    {fileSize(d.size)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-400">
+                    {d.uploadedAt.slice(0, 10)} · {d.uploadedBy}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">
+                    <a
+                      href={`/api/documents/${d.id}`}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
+                    >
+                      Download
+                    </a>
+                    <button
+                      onClick={() => remove(d)}
+                      className="ml-2 text-xs font-semibold text-slate-400 hover:text-red-600"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!loading && shown.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                    No documents yet — upload a passport, offer letter or score
+                    report and it will be here whenever you need it.
+                  </td>
+                </tr>
+              )}
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showUpload && (
+        <UploadModal
+          students={students}
+          preselect={filterStudent === "All" ? undefined : filterStudent}
+          onClose={() => setShowUpload(false)}
+          onDone={() => {
+            setShowUpload(false);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function UploadModal({
+  students,
+  preselect,
+  onClose,
+  onDone,
+}: {
+  students: Student[];
+  preselect?: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [studentId, setStudentId] = useState(preselect ?? students[0]?.id ?? "");
+  const [kind, setKind] = useState("Passport");
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function upload() {
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    const fd = new FormData();
+    fd.append("studentId", studentId);
+    fd.append("kind", kind);
+    fd.append("file", file);
+    try {
+      const res = await fetch("/api/documents", { method: "POST", body: fd });
+      const d = await res.json();
+      if (d.error) setError(d.error);
+      else onDone();
+    } catch (e) {
+      setError(String(e));
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Modal title="Upload Document" onClose={onClose}>
+      <div className="space-y-3">
+        <Field label="Student">
+          <select
+            value={studentId}
+            onChange={(e) => setStudentId(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          >
+            {students.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.id})
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Document type">
+          <div className="flex flex-wrap gap-2">
+            {DOC_KIND_LIST.map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setKind(k)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                  kind === k
+                    ? "bg-slate-800 text-white"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field label="File">
+          <input
+            type="file"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setError("");
+            }}
+            className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700"
+          />
+          <span className="mt-1 block text-[11px] text-slate-400">
+            PDF, JPG or PNG works best. Up to 5 MB per file.
+          </span>
+        </Field>
+
+        {file && (
+          <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            {file.name} · {fileSize(file.size)}
+          </div>
+        )}
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={upload}
+            disabled={busy || !file || !studentId}
+            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+          >
+            {busy ? "Uploading…" : "Upload"}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }
