@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/authServer";
-import { deleteStaff, setStaffActive, setStaffPassword } from "@/lib/staff";
+import { deleteStaff, setStaffActive, setStaffPassword, setStaffRole, STAFF_ROLES, StaffRole } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,14 @@ export async function PATCH(
       const r = await setStaffPassword(params.id, body.password);
       if (!r.ok) return NextResponse.json({ error: r.error }, { status: 400 });
       return NextResponse.json({ ok: true });
+    }
+
+    if (typeof body.role === "string" && STAFF_ROLES.includes(body.role as StaffRole)) {
+      const staff = await setStaffRole(params.id, body.role as StaffRole);
+      if (!staff) {
+        return NextResponse.json({ error: "Staff not found" }, { status: 404 });
+      }
+      return NextResponse.json({ staff });
     }
 
     if (typeof body.active === "boolean") {

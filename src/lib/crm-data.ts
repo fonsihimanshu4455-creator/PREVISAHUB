@@ -51,6 +51,7 @@ export type Student = {
   country: Country;
   intake: string; // e.g. "Sep 2026"
   counsellor: string;
+  telecaller?: string;
   stage: VisaStage;
   testType: TestType;
   // IELTS band 0-9 (0.5 steps) OR PTE score 10-90. Null = not taken.

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthed } from "@/lib/authServer";
-import { createStaff, listStaff } from "@/lib/staff";
+import { createStaff, listStaff, STAFF_ROLES, StaffRole } from "@/lib/staff";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +25,14 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json();
+    const role: StaffRole = STAFF_ROLES.includes(body.role)
+      ? (body.role as StaffRole)
+      : "counsellor";
     const result = await createStaff(
       String(body.name ?? ""),
       String(body.username ?? ""),
-      String(body.password ?? "")
+      String(body.password ?? ""),
+      role
     );
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });

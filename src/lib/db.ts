@@ -164,6 +164,9 @@ async function createSchema(): Promise<void> {
     CREATE INDEX IF NOT EXISTS students_counsellor_idx
     ON students (lower(counsellor))
   `;
+  // Every student write touches this column, so it belongs in the base schema
+  // rather than only where the calling panel sets it up.
+  await sql`ALTER TABLE students ADD COLUMN IF NOT EXISTS telecaller text NOT NULL DEFAULT ''`;
   await sql`
     CREATE TABLE IF NOT EXISTS tasks (
       id           text PRIMARY KEY,
@@ -221,7 +224,7 @@ export async function initDb() {
 type StudentRow = {
   id: string; name: string; phone: string; email: string | null;
   city: string | null; country: string; intake: string | null;
-  counsellor: string | null; stage: string; test_type: string;
+  counsellor: string | null; telecaller: string | null; stage: string; test_type: string;
   score: number | null; target_score: number; last_updated: string | null;
   next_follow_up: string | null; notes: string | null;
 };
@@ -236,6 +239,7 @@ function toStudent(r: StudentRow): Student {
     country: r.country as Student["country"],
     intake: r.intake ?? "",
     counsellor: r.counsellor ?? "",
+    telecaller: r.telecaller ?? "",
     stage: r.stage as Student["stage"],
     testType: r.test_type as Student["testType"],
     score: r.score,
@@ -334,6 +338,7 @@ export async function updateStudent(
     UPDATE students SET
       stage          = COALESCE(${patch.stage ?? null}, stage),
       counsellor     = COALESCE(${patch.counsellor ?? null}, counsellor),
+      telecaller     = COALESCE(${patch.telecaller ?? null}, telecaller),
       test_type      = COALESCE(${patch.testType ?? null}, test_type),
       score          = ${patch.score === undefined ? sql`score` : patch.score},
       next_follow_up = COALESCE(${patch.nextFollowUp ?? null}, next_follow_up),

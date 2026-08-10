@@ -38,6 +38,10 @@ export async function PATCH(
     if (session.role === "admin" && typeof body.counsellor === "string" && body.counsellor.trim()) {
       patch.counsellor = body.counsellor.trim();
     }
+    // Same reasoning for the calling assignment: only the admin hands numbers out.
+    if (session.role === "admin" && typeof body.telecaller === "string") {
+      patch.telecaller = body.telecaller.trim();
+    }
 
     // score is nullable — only include when the client actually sent it.
     if ("score" in body) {

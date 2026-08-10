@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 // The same CRM board the admin sees; the server scopes the data per role.
 import CrmBoard from "@/components/crm/CrmBoard";
+import CallingPanel from "@/components/crm/CallingPanel";
 
-type Staff = { id: string; name: string; username: string };
+type Staff = { id: string; name: string; username: string; role?: string };
 
 export default function StaffPortal() {
   const [staff, setStaff] = useState<Staff | null>(null);
@@ -44,7 +45,7 @@ export default function StaffPortal() {
                 Pre Visa Hub
               </div>
               <div className="text-[10px] tracking-widest text-slate-400">
-                STAFF PORTAL
+                {staff.role === "telecaller" ? "CALLING PANEL" : "STAFF PORTAL"}
               </div>
             </div>
           </div>
@@ -62,7 +63,7 @@ export default function StaffPortal() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
-        <StaffCrm staffName={staff.name} />
+        <StaffWork staff={staff} />
       </main>
     </div>
   );
@@ -158,18 +159,21 @@ function StaffLogin({ onLogin }: { onLogin: (s: Staff) => void }) {
 
 // The staff view of the CRM: their own students only. The server already
 // scopes the data, so this renders whatever it is given.
-function StaffCrm({ staffName }: { staffName: string }) {
+function StaffWork({ staff }: { staff: Staff }) {
+  const telecaller = staff.role === "telecaller";
   return (
     <div>
       <div className="mb-4">
         <h1 className="font-display text-2xl font-bold text-slate-800">
-          My Students
+          {telecaller ? "My Calling List" : "My Students"}
         </h1>
         <p className="mt-0.5 text-sm text-slate-500">
-          Students assigned to {staffName}
+          {telecaller
+            ? `Numbers assigned to ${staff.name}`
+            : `Students assigned to ${staff.name}`}
         </p>
       </div>
-      <CrmBoard showHeader={false} />
+      {telecaller ? <CallingPanel /> : <CrmBoard showHeader={false} />}
     </div>
   );
 }

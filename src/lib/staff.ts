@@ -14,10 +14,18 @@ import { sql, ensureSchema } from "./db";
 
 export const STAFF_COOKIE = "pvh_staff";
 
+/**
+ * What a staff member does. Counsellors work the CRM for their own students;
+ * telecallers get a calling list instead and never see the wider pipeline.
+ */
+export type StaffRole = "counsellor" | "telecaller";
+export const STAFF_ROLES: StaffRole[] = ["counsellor", "telecaller"];
+
 export type Staff = {
   id: string;
   name: string;
   username: string;
+  role: StaffRole;
   active: boolean;
   createdAt: string;
 };
@@ -27,6 +35,7 @@ type StaffRow = {
   name: string;
   username: string;
   password_hash: string;
+  role: string | null;
   active: boolean;
   created_at: string | Date;
 };
@@ -36,6 +45,7 @@ function toStaff(r: StaffRow): Staff {
     id: r.id,
     name: r.name,
     username: r.username,
+    role: (r.role === "telecaller" ? "telecaller" : "counsellor") as StaffRole,
     active: r.active,
     createdAt: String(r.created_at),
   };
@@ -100,6 +110,8 @@ async function createStaffSchema(): Promise<void> {
       created_at    timestamptz NOT NULL DEFAULT now()
     )
   `;
+  // Added after the table shipped, so existing installs pick it up too.
+  await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'counsellor'`;
 }
 
 // --------------------------- queries ---------------------------------------
@@ -117,7 +129,8 @@ export async function listStaff(): Promise<Staff[]> {
 export async function createStaff(
   name: string,
   username: string,
-  password: string
+  password: string,
+  role: StaffRole = "counsellor"
 ): Promise<{ ok: true; staff: Staff } | { ok: false; error: string }> {
   if (!sql) return { ok: false, error: "No database connected." };
   await ensureSchema();
@@ -145,11 +158,24 @@ export async function createStaff(
 
   const id = `ST-${randomBytes(4).toString("hex")}`;
   const [row] = await sql<StaffRow[]>`
-    INSERT INTO staff (id, name, username, password_hash)
-    VALUES (${id}, ${name.trim()}, ${uname}, ${hashPassword(password)})
+    INSERT INTO staff (id, name, username, password_hash, role)
+    VALUES (${id}, ${name.trim()}, ${uname}, ${hashPassword(password)},
+            ${STAFF_ROLES.includes(role) ? role : "counsellor"})
     RETURNING *
   `;
   return { ok: true, staff: toStaff(row) };
+}
+
+export async function setStaffRole(
+  id: string,
+  role: StaffRole
+): Promise<Staff | null> {
+  if (!sql) return null;
+  await ensureStaffSchema();
+  const [row] = await sql<StaffRow[]>`
+    UPDATE staff SET role = ${role} WHERE id = ${id} RETURNING *
+  `;
+  return row ? toStaff(row) : null;
 }
 
 export async function setStaffActive(

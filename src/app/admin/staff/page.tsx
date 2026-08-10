@@ -6,6 +6,7 @@ type Staff = {
   id: string;
   name: string;
   username: string;
+  role: "counsellor" | "telecaller";
   active: boolean;
   createdAt: string;
 };
@@ -38,6 +39,15 @@ export default function StaffAdminPage() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: !s.active }),
+    });
+    load();
+  }
+
+  async function changeRole(s: Staff, role: string) {
+    await fetch(`/api/staff/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
     });
     load();
   }
@@ -95,6 +105,7 @@ export default function StaffAdminPage() {
               <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th className="px-4 py-3 font-semibold">Name</th>
                 <th className="px-4 py-3 font-semibold">Username</th>
+                <th className="px-4 py-3 font-semibold">Role</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -105,6 +116,16 @@ export default function StaffAdminPage() {
                   <td className="px-4 py-3 font-semibold text-slate-800">{s.name}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">
                     {s.username}
+                  </td>
+                  <td className="px-4 py-3">
+                    <select
+                      value={s.role}
+                      onChange={(e) => changeRole(s, e.target.value)}
+                      className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold outline-none focus:border-orange-400"
+                    >
+                      <option value="counsellor">Counsellor</option>
+                      <option value="telecaller">Telecaller</option>
+                    </select>
                   </td>
                   <td className="px-4 py-3">
                     <span
@@ -143,14 +164,14 @@ export default function StaffAdminPage() {
               ))}
               {!loading && staff.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
                     No staff accounts yet — add your first counsellor above.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">
                     Loading…
                   </td>
                 </tr>
@@ -186,6 +207,7 @@ function AddStaffModal({
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("counsellor");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -195,7 +217,7 @@ function AddStaffModal({
     const res = await fetch("/api/staff", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, username, password }),
+      body: JSON.stringify({ name, username, password, role }),
     });
     const d = await res.json();
     setBusy(false);
@@ -206,9 +228,23 @@ function AddStaffModal({
   return (
     <Modal title="Add Staff Member" onClose={onClose}>
       <div className="space-y-3">
+        <Field label="Role" hint="Counsellors work the CRM; telecallers get a calling list.">
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          >
+            <option value="counsellor">Counsellor</option>
+            <option value="telecaller">Telecaller</option>
+          </select>
+        </Field>
         <Field
           label="Full name"
-          hint="Must match the Counsellor name on their students."
+          hint={
+            role === "telecaller"
+              ? "Numbers you assign to this name show on their calling list."
+              : "Must match the Counsellor name on their students."
+          }
         >
           <input
             value={name}

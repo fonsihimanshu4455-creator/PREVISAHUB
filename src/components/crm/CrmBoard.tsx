@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import CallingPanel from "@/components/crm/CallingPanel";
 import {
   COUNTRIES,
   Country,
@@ -20,7 +21,7 @@ import {
 
 type View =
   | "dashboard" | "students" | "pipeline" | "tasks" | "payments"
-  | "tests" | "attendance" | "documents";
+  | "tests" | "attendance" | "documents" | "calling";
 
 export type DocMeta = {
   id: string; studentId: string; studentName: string; name: string;
@@ -79,7 +80,7 @@ const TODAY_LABEL = new Date(TODAY + "T00:00:00Z").toLocaleDateString("en-GB", {
 
 const VIEWS: View[] = [
   "dashboard", "students", "pipeline", "tasks", "payments",
-  "tests", "attendance", "documents",
+  "tests", "attendance", "documents", "calling",
 ];
 
 export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }) {
@@ -103,6 +104,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [payments, setPayments] = useState<PaymentRec[]>([]);
   const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
   const [counsellors, setCounsellors] = useState<string[]>([]);
+  const [telecallers, setTelecallers] = useState<string[]>([]);
   const [role, setRole] = useState<"admin" | "staff">("admin");
 
   useEffect(() => {
@@ -125,6 +127,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         setMode(rs.mode === "db" ? "db" : "demo");
         if (rs.role) setRole(rs.role);
         if (Array.isArray(rc?.counsellors)) setCounsellors(rc.counsellors);
+        if (Array.isArray(rc?.telecallers)) setTelecallers(rc.telecallers);
       } catch (e) {
         if (alive) {
           setError(String(e));
@@ -213,6 +216,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     { key: "tests", label: "Tests" },
     { key: "attendance", label: "Attendance" },
     { key: "documents", label: "Documents" },
+    { key: "calling", label: "Calling" },
   ];
 
   return (
@@ -271,6 +275,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         <Students
           students={students}
           counsellors={counsellors}
+          telecallers={telecallers}
           canReassign={role === "admin"}
           onAdd={addStudent}
           onUpdate={updateStudent}
@@ -281,6 +286,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       {view === "tests" && <Tests students={students} />}
       {view === "attendance" && <Attendance students={students} />}
       {view === "documents" && <Documents students={students} />}
+      {view === "calling" && <CallingPanel isAdmin />}
       {view === "payments" && (
         <Payments
           students={students}
@@ -587,12 +593,14 @@ function Dashboard({
 function Students({
   students,
   counsellors,
+  telecallers,
   canReassign,
   onAdd,
   onUpdate,
 }: {
   students: Student[];
   counsellors: string[];
+  telecallers: string[];
   canReassign: boolean;
   onAdd: (input: NewStudentInput) => void | Promise<void>;
   onUpdate: (id: string, patch: Partial<Student>) => void | Promise<void>;
@@ -625,7 +633,9 @@ function Students({
       score: updated.score,
       nextFollowUp: updated.nextFollowUp,
       notes: updated.notes,
-      ...(canReassign ? { counsellor: updated.counsellor } : {}),
+      ...(canReassign
+        ? { counsellor: updated.counsellor, telecaller: updated.telecaller }
+        : {}),
     });
     setEditing(null);
   }
@@ -774,6 +784,7 @@ function Students({
         <ManageStudentModal
           student={editing}
           counsellors={counsellors}
+          telecallers={telecallers}
           canReassign={canReassign}
           onClose={() => setEditing(null)}
           onSave={saveStudent}
@@ -1022,12 +1033,14 @@ function Tasks({
 function ManageStudentModal({
   student,
   counsellors,
+  telecallers,
   canReassign,
   onClose,
   onSave,
 }: {
   student: Student;
   counsellors: string[];
+  telecallers: string[];
   canReassign: boolean;
   onClose: () => void;
   onSave: (s: Student) => void;
@@ -1089,13 +1102,29 @@ function ManageStudentModal({
         </div>
 
         {canReassign && (
-          <Field label="Counsellor">
-            <CounsellorPicker
-              value={draft.counsellor}
-              options={counsellors}
-              onChange={(v) => setDraft({ ...draft, counsellor: v })}
-            />
-          </Field>
+          <>
+            <Field label="Counsellor">
+              <CounsellorPicker
+                value={draft.counsellor}
+                options={counsellors}
+                onChange={(v) => setDraft({ ...draft, counsellor: v })}
+              />
+            </Field>
+            <Field label="Telecaller (who calls this number)">
+              <select
+                value={draft.telecaller ?? ""}
+                onChange={(e) => setDraft({ ...draft, telecaller: e.target.value })}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              >
+                <option value="">— not assigned —</option>
+                {telecallers.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </>
         )}
 
         <Field label="Next Follow-up">
