@@ -6,10 +6,15 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   let username = "";
   let password = "";
+  // Which panel the form belongs to. Checked before a session is issued, so
+  // signing in on the wrong page fails there instead of landing somewhere
+  // that then has nothing to show.
+  let expect = "";
   try {
     const body = await req.json();
     username = String(body.username ?? "");
     password = String(body.password ?? "");
+    expect = String(body.expect ?? "");
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
@@ -20,6 +25,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { ok: false, error: "Wrong username or password." },
       { status: 401 }
+    );
+  }
+
+  if (expect && result.staff.role !== expect) {
+    const goes =
+      result.staff.role === "telecaller"
+        ? { where: "/calling", label: "Calling Panel" }
+        : { where: "/staff", label: "Staff Portal" };
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `That account signs in at the ${goes.label}.`,
+        redirect: goes.where,
+      },
+      { status: 403 }
     );
   }
 

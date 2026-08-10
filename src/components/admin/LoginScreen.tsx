@@ -57,9 +57,14 @@ export default function LoginScreen({
           {busy ? "Logging in…" : "Login"}
         </button>
         <p className="mt-5 text-center text-xs text-slate-400">
-          Staff member?{" "}
+          Counsellor?{" "}
           <a href="/staff" className="font-semibold text-orange-600 hover:underline">
-            Sign in here
+            Staff portal
+          </a>
+          {" · "}
+          Telecaller?{" "}
+          <a href="/calling" className="font-semibold text-orange-600 hover:underline">
+            Calling panel
           </a>
         </p>
       </form>

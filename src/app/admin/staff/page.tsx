@@ -79,17 +79,17 @@ export default function StaffAdminPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-        Staff sign in at{" "}
-        <a
-          href="/staff"
-          target="_blank"
-          className="font-semibold text-orange-600 hover:underline"
-        >
+        <b>Counsellors</b> sign in at{" "}
+        <a href="/staff" target="_blank" className="font-semibold text-orange-600 hover:underline">
           /staff
         </a>
-        . A student shows up for whoever is set as their <b>Counsellor</b> in the
-        CRM — so the staff member&apos;s name here must match the counsellor name
-        on the student.
+        , <b>telecallers</b> at{" "}
+        <a href="/calling" target="_blank" className="font-semibold text-orange-600 hover:underline">
+          /calling
+        </a>
+        . Work is matched by name — a student shows up for whoever is set as
+        their <b>Counsellor</b>, and a number for whoever is set as its{" "}
+        <b>Telecaller</b> — so the name here must match the one on the student.
       </div>
 
       {error && (

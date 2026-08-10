@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// The same CRM board the admin sees; the server scopes the data per role.
-import CrmBoard from "@/components/crm/CrmBoard";
+import CallingPanel from "@/components/crm/CallingPanel";
 import StaffLogin, { StaffAccount } from "@/components/staff/StaffLogin";
 
 /**
- * The counsellors' portal. Telecallers have their own entrance at /calling —
- * the login rejects them here and points the way.
+ * The telecallers' own entrance. Separate from /staff so a caller has one URL
+ * to remember and never sees the counsellor side; the login itself rejects
+ * accounts of the other kind.
  */
-export default function StaffPortal() {
+export default function CallingPage() {
   const [staff, setStaff] = useState<StaffAccount | null>(null);
   const [ready, setReady] = useState(false);
 
@@ -17,7 +17,7 @@ export default function StaffPortal() {
     fetch("/api/staff-session")
       .then((r) => r.json())
       .then((d) =>
-        setStaff(d.role === "staff" && d.staff?.role !== "telecaller" ? d.staff : null)
+        setStaff(d.role === "staff" && d.staff?.role === "telecaller" ? d.staff : null)
       )
       .catch(() => setStaff(null))
       .finally(() => setReady(true));
@@ -39,11 +39,12 @@ export default function StaffPortal() {
   if (!staff) {
     return (
       <StaffLogin
-        expect="counsellor"
-        title="Staff Login"
-        subtitle="Sign in to see the students assigned to you."
-        otherLabel="Telecaller?"
-        otherHref="/calling"
+        expect="telecaller"
+        icon="📞"
+        title="Calling Panel"
+        subtitle="Sign in to see the numbers assigned to you."
+        otherLabel="Counsellor?"
+        otherHref="/staff"
         onLogin={setStaff}
       />
     );
@@ -52,15 +53,15 @@ export default function StaffPortal() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🔶</span>
+            <span className="text-xl">📞</span>
             <div className="leading-tight">
               <div className="font-display text-sm font-bold text-slate-800">
                 Pre Visa Hub
               </div>
               <div className="text-[10px] tracking-widest text-slate-400">
-                STAFF PORTAL
+                CALLING PANEL
               </div>
             </div>
           </div>
@@ -75,14 +76,16 @@ export default function StaffPortal() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl p-4 sm:p-6">
+      <main className="mx-auto max-w-5xl p-4 sm:p-6">
         <div className="mb-4">
-          <h1 className="font-display text-2xl font-bold text-slate-800">My Students</h1>
+          <h1 className="font-display text-2xl font-bold text-slate-800">
+            My Calling List
+          </h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Students assigned to {staff.name}
+            Numbers assigned to {staff.name}
           </p>
         </div>
-        <CrmBoard showHeader={false} />
+        <CallingPanel />
       </main>
     </div>
   );
