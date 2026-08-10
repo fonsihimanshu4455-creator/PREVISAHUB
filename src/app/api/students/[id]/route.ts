@@ -33,6 +33,12 @@ export async function PATCH(
       notes: body.notes,
       lastUpdated: TODAY,
     };
+    // Reassigning a student is an admin action: a staff session changing it
+    // could move students out of (or into) someone's caseload.
+    if (session.role === "admin" && typeof body.counsellor === "string" && body.counsellor.trim()) {
+      patch.counsellor = body.counsellor.trim();
+    }
+
     // score is nullable — only include when the client actually sent it.
     if ("score" in body) {
       patch.score =

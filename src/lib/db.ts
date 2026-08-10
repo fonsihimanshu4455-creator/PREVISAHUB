@@ -333,6 +333,7 @@ export async function updateStudent(
   const [row] = await sql<StudentRow[]>`
     UPDATE students SET
       stage          = COALESCE(${patch.stage ?? null}, stage),
+      counsellor     = COALESCE(${patch.counsellor ?? null}, counsellor),
       test_type      = COALESCE(${patch.testType ?? null}, test_type),
       score          = ${patch.score === undefined ? sql`score` : patch.score},
       next_follow_up = COALESCE(${patch.nextFollowUp ?? null}, next_follow_up),
@@ -411,4 +412,26 @@ export async function settingSet(key: string, value: string): Promise<void> {
     VALUES (${key}, ${value}, now())
     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
   `;
+}
+
+/**
+ * Every counsellor name in use — staff accounts plus any name already on a
+ * student. Imported spreadsheets bring in names that never had a login, and
+ * those still need to be pickable so the caseload stays intact.
+ */
+export async function listCounsellors(): Promise<string[]> {
+  if (!sql) {
+    return Array.from(new Set(SEED_STUDENTS.map((s) => s.counsellor))).sort();
+  }
+  await ensureSchema();
+  const rows = await sql<{ name: string }[]>`
+    SELECT DISTINCT name FROM (
+      SELECT counsellor AS name FROM students WHERE counsellor <> ''
+      UNION
+      SELECT name FROM staff WHERE active
+    ) x
+    WHERE name IS NOT NULL AND name <> ''
+    ORDER BY name
+  `;
+  return rows.map((r) => r.name);
 }

@@ -80,14 +80,17 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [fees, setFees] = useState<FeeSummary[]>([]);
   const [payments, setPayments] = useState<PaymentRec[]>([]);
   const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
+  const [counsellors, setCounsellors] = useState<string[]>([]);
+  const [role, setRole] = useState<"admin" | "staff">("admin");
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [rs, rt] = await Promise.all([
+        const [rs, rt, rc] = await Promise.all([
           fetch("/api/students").then((r) => r.json()),
           fetch("/api/tasks").then((r) => r.json()),
+          fetch("/api/counsellors").then((r) => r.json()),
         ]);
         if (!alive) return;
         if (rs.error) {
@@ -98,6 +101,8 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         if (Array.isArray(rs.students)) setStudents(rs.students);
         if (Array.isArray(rt.tasks)) setTasks(rt.tasks);
         setMode(rs.mode === "db" ? "db" : "demo");
+        if (rs.role) setRole(rs.role);
+        if (Array.isArray(rc?.counsellors)) setCounsellors(rc.counsellors);
       } catch (e) {
         if (alive) {
           setError(String(e));
@@ -240,7 +245,13 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
 
       {view === "dashboard" && <Dashboard students={students} onGoto={setView} />}
       {view === "students" && (
-        <Students students={students} onAdd={addStudent} onUpdate={updateStudent} />
+        <Students
+          students={students}
+          counsellors={counsellors}
+          canReassign={role === "admin"}
+          onAdd={addStudent}
+          onUpdate={updateStudent}
+        />
       )}
       {view === "pipeline" && <Pipeline students={students} onMove={moveStudent} />}
       {view === "tasks" && <Tasks tasks={tasks} onToggle={toggleTask} />}
@@ -551,10 +562,14 @@ function Dashboard({
 // =========================================================================
 function Students({
   students,
+  counsellors,
+  canReassign,
   onAdd,
   onUpdate,
 }: {
   students: Student[];
+  counsellors: string[];
+  canReassign: boolean;
   onAdd: (input: NewStudentInput) => void | Promise<void>;
   onUpdate: (id: string, patch: Partial<Student>) => void | Promise<void>;
 }) {
@@ -586,6 +601,7 @@ function Students({
       score: updated.score,
       nextFollowUp: updated.nextFollowUp,
       notes: updated.notes,
+      ...(canReassign ? { counsellor: updated.counsellor } : {}),
     });
     setEditing(null);
   }
@@ -722,6 +738,7 @@ function Students({
 
       {showAdd && (
         <AddStudentModal
+          counsellors={counsellors}
           onClose={() => setShowAdd(false)}
           onAdd={(i) => {
             onAdd(i);
@@ -732,6 +749,8 @@ function Students({
       {editing && (
         <ManageStudentModal
           student={editing}
+          counsellors={counsellors}
+          canReassign={canReassign}
           onClose={() => setEditing(null)}
           onSave={saveStudent}
         />
@@ -978,10 +997,14 @@ function Tasks({
 // =========================================================================
 function ManageStudentModal({
   student,
+  counsellors,
+  canReassign,
   onClose,
   onSave,
 }: {
   student: Student;
+  counsellors: string[];
+  canReassign: boolean;
   onClose: () => void;
   onSave: (s: Student) => void;
 }) {
@@ -1041,6 +1064,16 @@ function ManageStudentModal({
           </Field>
         </div>
 
+        {canReassign && (
+          <Field label="Counsellor">
+            <CounsellorPicker
+              value={draft.counsellor}
+              options={counsellors}
+              onChange={(v) => setDraft({ ...draft, counsellor: v })}
+            />
+          </Field>
+        )}
+
         <Field label="Next Follow-up">
           <input
             type="date"
@@ -1078,10 +1111,76 @@ function ManageStudentModal({
   );
 }
 
+
+/**
+ * Counsellor picker. The list comes from staff accounts plus names already on
+ * students; choosing "Add new counsellor" swaps in a text box so a name can be
+ * used before (or without) creating a login for it.
+ */
+function CounsellorPicker({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const known = options.includes(value);
+  const [typing, setTyping] = useState(options.length === 0 || (!!value && !known));
+
+  if (typing) {
+    return (
+      <div className="flex gap-2">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. Simran Kaur"
+          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+        />
+        {options.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setTyping(false);
+              onChange(options[0]);
+            }}
+            className="shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+          >
+            Pick
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => {
+        if (e.target.value === "__new__") {
+          setTyping(true);
+          onChange("");
+        } else onChange(e.target.value);
+      }}
+      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+    >
+      {options.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+      <option value="__new__">+ Add new counsellor…</option>
+    </select>
+  );
+}
+
 function AddStudentModal({
+  counsellors,
   onClose,
   onAdd,
 }: {
+  counsellors: string[];
   onClose: () => void;
   onAdd: (input: NewStudentInput) => void;
 }) {
@@ -1134,14 +1233,11 @@ function AddStudentModal({
           </Field>
         </div>
         <Field label="Assign Counsellor">
-          <select
+          <CounsellorPicker
             value={counsellor}
-            onChange={(e) => setCounsellor(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
-          >
-            <option>Rohit Sharma</option>
-            <option>Neha Gupta</option>
-          </select>
+            options={counsellors}
+            onChange={setCounsellor}
+          />
         </Field>
         <div className="flex justify-end gap-2 pt-1">
           <button
