@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Icon, { IconName } from "@/components/admin/Icon";
 
 export type StaffAccount = {
   id: string;
@@ -18,7 +19,7 @@ export default function StaffLogin({
   expect,
   title,
   subtitle,
-  icon = "🔶",
+  icon = "logo",
   otherLabel,
   otherHref,
   onLogin,
@@ -26,7 +27,7 @@ export default function StaffLogin({
   expect: "counsellor" | "telecaller";
   title: string;
   subtitle: string;
-  icon?: string;
+  icon?: IconName;
   otherLabel: string;
   otherHref: string;
   onLogin: (s: StaffAccount) => void;
@@ -61,36 +62,36 @@ export default function StaffLogin({
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-ground px-4">
       <form
         onSubmit={submit}
-        className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+        className="w-full max-w-sm panel p-6"
       >
         <div className="mb-5 text-center">
-          <div className="text-3xl">{icon}</div>
-          <h1 className="mt-2 font-display text-xl font-bold text-slate-800">{title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+          <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent"><Icon name={icon} className="h-5 w-5" strokeWidth={2} /></span>
+          <h1 className="mt-2 font-display text-xl font-bold text-[color:var(--text)]">{title}</h1>
+          <p className="mt-1 text-sm text-[color:var(--text-muted)]">{subtitle}</p>
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold text-slate-500">Username</span>
+          <span className="mb-1 block text-xs font-semibold text-[color:var(--text-muted)]">Username</span>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoCapitalize="none"
             autoCorrect="off"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
             placeholder="your username"
           />
         </label>
 
         <label className="mt-3 block">
-          <span className="mb-1 block text-xs font-semibold text-slate-500">Password</span>
+          <span className="mb-1 block text-xs font-semibold text-[color:var(--text-muted)]">Password</span>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-lg border border-line px-3 py-2.5 text-sm outline-none focus:border-accent"
           />
         </label>
 
@@ -111,14 +112,14 @@ export default function StaffLogin({
         <button
           type="submit"
           disabled={busy || !username || !password}
-          className="mt-4 w-full rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-accent px-4 py-3 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
         >
           {busy ? "Signing in…" : "Login"}
         </button>
 
-        <p className="mt-5 text-center text-xs text-slate-400">
+        <p className="mt-5 text-center text-xs text-[color:var(--text-faint)]">
           {otherLabel}{" "}
-          <a href={otherHref} className="font-semibold text-orange-600 hover:underline">
+          <a href={otherHref} className="font-semibold text-accent hover:underline">
             Sign in here
           </a>
         </p>

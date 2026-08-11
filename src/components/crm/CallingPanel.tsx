@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Icon from "@/components/admin/Icon";
 
 export type CallTarget = {
   studentId: string;
@@ -49,12 +50,14 @@ const OUTCOMES = [
 
 /** Colour by what the outcome means for the next action. */
 function outcomeTone(o: string): string {
-  if (o === "Interested") return "bg-green-100 text-green-700 ring-green-200";
-  if (o === "Callback") return "bg-blue-100 text-blue-700 ring-blue-200";
-  if (o === "Connected") return "bg-slate-100 text-slate-700 ring-slate-200";
+  if (o === "Interested")
+    return "bg-good-soft text-[color:var(--good)] ring-[#bfe3d2]";
+  if (o === "Callback") return "bg-info-soft text-[color:var(--info)] ring-[#c6d9f2]";
+  if (o === "Connected")
+    return "bg-surface-sunk text-[color:var(--text-muted)] ring-[color:var(--line)]";
   if (o === "Not interested" || o === "Wrong number")
-    return "bg-red-100 text-red-700 ring-red-200";
-  return "bg-amber-100 text-amber-700 ring-amber-200";
+    return "bg-crit-soft text-[color:var(--crit)] ring-[#f3c9c4]";
+  return "bg-warn-soft text-[color:var(--warn)] ring-[#f0dcbb]";
 }
 
 const CLOSED = ["Not interested", "Wrong number"];
@@ -123,7 +126,7 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
   };
 
   if (loading) {
-    return <div className="py-16 text-center text-slate-400">Loading…</div>;
+    return <div className="py-16 text-center text-[color:var(--text-faint)]">Loading…</div>;
   }
 
   return (
@@ -135,20 +138,20 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
       )}
 
       <div className="grid grid-cols-3 gap-3">
-        <Stat label="To call" value={counts.todo} tone="text-slate-800" />
-        <Stat label="Callbacks due" value={counts.callback} tone="text-blue-600" />
-        <Stat label="Interested" value={counts.interested} tone="text-green-600" />
+        <Stat label="To call" value={counts.todo} tone="text-[color:var(--text)]" />
+        <Stat label="Callbacks due" value={counts.callback} tone="text-[color:var(--info)]" />
+        <Stat label="Interested" value={counts.interested} tone="text-[color:var(--good)]" />
       </div>
 
       {isAdmin && stats.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+        <div className="overflow-hidden panel">
+          <div className="border-b border-line px-4 py-3 text-sm font-bold text-[color:var(--text)]">
             By Telecaller
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr className="bg-surface-sunk text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-[color:var(--text-faint)]">
                   <th className="px-4 py-2.5 font-semibold">Telecaller</th>
                   <th className="px-4 py-2.5 font-semibold">Assigned</th>
                   <th className="px-4 py-2.5 font-semibold">Called</th>
@@ -156,18 +159,18 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
                   <th className="px-4 py-2.5 font-semibold">Interested</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-line">
                 {stats.map((s) => (
-                  <tr key={s.telecaller} className="hover:bg-orange-50/40">
-                    <td className="px-4 py-2.5 font-semibold text-slate-800">
+                  <tr key={s.telecaller} className="hover:bg-accent/[0.04]">
+                    <td className="px-4 py-2.5 font-semibold text-[color:var(--text)]">
                       {s.telecaller}
                     </td>
                     <td className="px-4 py-2.5">{s.assigned}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{s.called}</td>
-                    <td className="px-4 py-2.5 font-semibold text-amber-600">
+                    <td className="px-4 py-2.5 text-[color:var(--text-muted)]">{s.called}</td>
+                    <td className="px-4 py-2.5 font-semibold text-[color:var(--warn)]">
                       {s.pending}
                     </td>
-                    <td className="px-4 py-2.5 font-semibold text-green-600">
+                    <td className="px-4 py-2.5 font-semibold text-[color:var(--good)]">
                       {s.interested}
                     </td>
                   </tr>
@@ -192,8 +195,8 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
             onClick={() => setFilter(k)}
             className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${
               filter === k
-                ? "bg-slate-800 text-white"
-                : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                ? "bg-ink-800 text-white"
+                : "bg-surface text-[color:var(--text-muted)] ring-1 ring-[color:var(--line-strong)] hover:bg-surface-sunk"
             }`}
           >
             {l}
@@ -205,11 +208,11 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
         {shown.map((t) => (
           <div
             key={t.studentId}
-            className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            className="flex flex-wrap items-center gap-3 panel p-4"
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold text-slate-800">{t.name}</span>
+                <span className="font-semibold text-[color:var(--text)]">{t.name}</span>
                 {t.lastOutcome && (
                   <span
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${outcomeTone(
@@ -225,7 +228,7 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 text-sm text-slate-500">
+              <div className="mt-0.5 text-sm text-[color:var(--text-muted)]">
                 <span className="font-mono">{t.phone}</span>
                 {t.city && <> · {t.city}</>} · {t.country}
                 {t.attempts > 0 && (
@@ -238,9 +241,10 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
             <div className="flex flex-wrap gap-2">
               <a
                 href={`tel:${t.phone.replace(/[^0-9+]/g, "")}`}
-                className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white transition hover:bg-slate-700"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ink-800 px-3 py-2 text-[12px] font-bold text-white transition hover:bg-ink-700"
               >
-                📞 Call
+                <Icon name="phone" className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Call
               </a>
               <a
                 href={`https://wa.me/${t.phone.replace(/[^0-9]/g, "")}`}
@@ -252,7 +256,7 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
               </a>
               <button
                 onClick={() => setLogging(t)}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
+                className="rounded-lg border border-line-strong px-3 py-2 text-xs font-semibold text-[color:var(--text-muted)] transition hover:border-orange-400 hover:text-orange-600"
               >
                 Log result
               </button>
@@ -261,7 +265,7 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
         ))}
 
         {shown.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-400">
+          <div className="rounded-2xl border border-dashed border-line-strong bg-white py-12 text-center text-sm text-[color:var(--text-faint)]">
             {targets.length === 0
               ? isAdmin
                 ? "No numbers assigned yet. Assign students to a telecaller from the Students tab."
@@ -272,17 +276,17 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
       </div>
 
       {calls.length > 0 && (
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+        <div className="overflow-hidden panel">
+          <div className="border-b border-line px-4 py-3 text-sm font-bold text-[color:var(--text)]">
             Recent Calls
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-line">
             {calls.slice(0, 20).map((c) => (
               <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="w-32 shrink-0 text-xs text-slate-400">
+                <span className="w-32 shrink-0 text-xs text-[color:var(--text-faint)]">
                   {c.calledAt.slice(0, 16).replace("T", " ")}
                 </span>
-                <span className="font-semibold text-slate-800">{c.studentName}</span>
+                <span className="font-semibold text-[color:var(--text)]">{c.studentName}</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${outcomeTone(
                     c.outcome
@@ -290,9 +294,9 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
                 >
                   {c.outcome}
                 </span>
-                {c.note && <span className="truncate text-slate-500">{c.note}</span>}
+                {c.note && <span className="truncate text-[color:var(--text-muted)]">{c.note}</span>}
                 {isAdmin && (
-                  <span className="ml-auto text-xs text-slate-400">{c.telecaller}</span>
+                  <span className="ml-auto text-xs text-[color:var(--text-faint)]">{c.telecaller}</span>
                 )}
               </div>
             ))}
@@ -316,8 +320,8 @@ export default function CallingPanel({ isAdmin = false }: { isAdmin?: boolean })
 
 function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+    <div className="panel p-4">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">
         {label}
       </div>
       <div className={`mt-1 font-display text-2xl font-extrabold ${tone}`}>{value}</div>
@@ -374,14 +378,14 @@ function LogCallModal({
       >
         <div className="mb-1 flex items-start justify-between gap-3">
           <div>
-            <h3 className="font-display text-lg font-bold text-slate-800">
+            <h3 className="font-display text-lg font-bold text-[color:var(--text)]">
               {target.name}
             </h3>
-            <p className="font-mono text-sm text-slate-500">{target.phone}</p>
+            <p className="font-mono text-sm text-[color:var(--text-muted)]">{target.phone}</p>
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--text-faint)] hover:bg-surface-sunk"
           >
             ✕
           </button>
@@ -389,7 +393,7 @@ function LogCallModal({
 
         <div className="mt-4 space-y-3">
           <div>
-            <span className="mb-1.5 block text-xs font-semibold text-slate-500">
+            <span className="mb-1.5 block text-xs font-semibold text-[color:var(--text-muted)]">
               How did it go?
             </span>
             <div className="flex flex-wrap gap-2">
@@ -401,7 +405,7 @@ function LogCallModal({
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                     outcome === o
                       ? "bg-slate-800 text-white"
-                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+                      : "bg-white text-[color:var(--text-muted)] ring-1 ring-slate-200 hover:bg-slate-50"
                   }`}
                 >
                   {o}
@@ -412,20 +416,20 @@ function LogCallModal({
 
           {outcome === "Callback" && (
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-slate-500">
+              <span className="mb-1 block text-xs font-semibold text-[color:var(--text-muted)]">
                 Call back on
               </span>
               <input
                 type="date"
                 value={callbackOn}
                 onChange={(e) => setCallbackOn(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                className="w-full rounded-xl border border-line-strong px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </label>
           )}
 
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-slate-500">
+            <span className="mb-1 block text-xs font-semibold text-[color:var(--text-muted)]">
               Note (optional)
             </span>
             <textarea
@@ -433,7 +437,7 @@ function LogCallModal({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. wants Canada, will send documents"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-line-strong px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </label>
 
@@ -442,7 +446,7 @@ function LogCallModal({
           <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={onClose}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              className="rounded-xl border border-line-strong px-4 py-2.5 text-sm font-semibold text-[color:var(--text-muted)] hover:bg-slate-50"
             >
               Cancel
             </button>

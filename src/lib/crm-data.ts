@@ -369,33 +369,54 @@ export function formatScore(s: Student): string {
   return s.testType === "IELTS" ? s.score.toFixed(1) : String(s.score);
 }
 
+/**
+ * Visa stages are a progression, not a set of unrelated categories — so they
+ * are encoded as one hue deepening as a student advances, rather than seven
+ * arbitrary colours. (Seven hues also failed colour-blind separation: blue,
+ * teal and purple collapse into each other.) The two terminal outcomes leave
+ * the ramp and use the reserved status colours instead.
+ */
 export function stageColor(stage: VisaStage): string {
   switch (stage) {
     case "Enquiry":
-      return "bg-slate-100 text-slate-700 ring-slate-200";
+      return "bg-[#eef1f6] text-[#4a5568] ring-[#dce1ea]";
     case "Documentation":
-      return "bg-amber-100 text-amber-800 ring-amber-200";
+      return "bg-[#dde6f5] text-[#2d5180] ring-[#c6d5ec]";
     case "Test Prep":
-      return "bg-violet-100 text-violet-800 ring-violet-200";
+      return "bg-[#c6d9f1] text-[#22447a] ring-[#a9c4e6]";
     case "Application Filed":
-      return "bg-blue-100 text-blue-800 ring-blue-200";
+      return "bg-[#aac6e9] text-[#1a3a6d] ring-[#8bb0dd]";
     case "Biometrics":
-      return "bg-cyan-100 text-cyan-800 ring-cyan-200";
+      return "bg-[#8aaedd] text-[#14305e] ring-[#6d97cf]";
     case "Approved":
-      return "bg-green-100 text-green-800 ring-green-200";
+      return "bg-[color:var(--good-soft)] text-[color:var(--good)] ring-[#bfe3d2]";
     case "Rejected":
-      return "bg-red-100 text-red-800 ring-red-200";
+      return "bg-[color:var(--crit-soft)] text-[color:var(--crit)] ring-[#f3c9c4]";
   }
+}
+
+/** Fill for a stage on a chart — the same ramp, at mark strength. */
+export function stageFill(stage: VisaStage): string {
+  const ramp: Record<VisaStage, string> = {
+    Enquiry: "#b9c2d1",
+    Documentation: "#8fa8cd",
+    "Test Prep": "#6b8dc0",
+    "Application Filed": "#4a72b0",
+    Biometrics: "#2d569b",
+    Approved: "#0f7a52",
+    Rejected: "#b02a1f",
+  };
+  return ramp[stage];
 }
 
 export function priorityColor(p: Task["priority"]): string {
   switch (p) {
     case "High":
-      return "bg-red-100 text-red-700 ring-red-200";
+      return "bg-[color:var(--crit-soft)] text-[color:var(--crit)] ring-[#f3c9c4]";
     case "Medium":
-      return "bg-amber-100 text-amber-700 ring-amber-200";
+      return "bg-[color:var(--warn-soft)] text-[color:var(--warn)] ring-[#f0dcbb]";
     case "Low":
-      return "bg-slate-100 text-slate-600 ring-slate-200";
+      return "bg-[color:var(--surface-sunk)] text-[color:var(--text-muted)] ring-[color:var(--line)]";
   }
 }
 
@@ -417,4 +438,17 @@ export function relativeDue(iso: string): string {
 /** Rupee formatting, used by both server reports and client tables. */
 export function formatINR(n: number): string {
   return "₹" + Math.round(n).toLocaleString("en-IN");
+}
+
+/**
+ * Short rupees for headline figures — ₹2.12 Cr rather than ₹2,12,00,000.
+ * Lakh and crore are how these amounts get said out loud here, and the full
+ * number overflows a stat card once it passes a few lakh.
+ */
+export function formatINRShort(n: number): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)} Cr`;
+  if (abs >= 1_00_000) return `₹${(n / 1_00_000).toFixed(2)} L`;
+  if (abs >= 1_000) return `₹${(n / 1_000).toFixed(1)}k`;
+  return `₹${Math.round(n)}`;
 }

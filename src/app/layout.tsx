@@ -1,5 +1,22 @@
 import type { Metadata } from "next";
+import { Inter, Sora } from "next/font/google";
 import "./globals.css";
+
+// Self-hosted at build time: no third-party request on load, no flash of
+// fallback text, and the weights are pinned to the ones actually used.
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+  display: "swap",
+});
+
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+  display: "swap",
+});
 import { SiteContentProvider } from "@/lib/SiteContentContext";
 import ThemeInjector from "@/components/ThemeInjector";
 import { readContent } from "@/lib/storage";
@@ -46,19 +63,7 @@ export default async function RootLayout({
   const initial = (await readContent()) ?? defaultContent;
 
   return (
-    <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${inter.variable} ${sora.variable}`}>
       <body>
         <SiteContentProvider initial={initial}>
           <ThemeInjector />

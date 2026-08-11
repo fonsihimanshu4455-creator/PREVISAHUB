@@ -66,21 +66,21 @@ export default function ImportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-slate-800">
-          Import Students 📥
+        <h1 className="font-display text-display-lg font-bold">
+          Import Students
         </h1>
-        <p className="mt-1 text-slate-500">
+        <p className="mt-1 text-[color:var(--text-muted)]">
           Upload an Excel (.xlsx) or CSV file to add many students at once.
           You will see a preview before anything is saved.
         </p>
       </div>
 
       {/* Expected columns */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="font-display font-bold text-slate-800">
+      <div className="panel p-5">
+        <h3 className="font-display text-[15px] font-bold">
           What your file should look like
         </h3>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-[color:var(--text-muted)]">
           The first row must be column headings. Only <b>Name</b> and{" "}
           <b>Phone</b> are required — everything else is optional and fills in a
           sensible default. Column names are matched loosely, so
@@ -89,14 +89,14 @@ export default function ImportPage() {
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-slate-50 text-left text-slate-500">
+              <tr className="bg-slate-50 text-left text-[color:var(--text-muted)]">
                 {["Name*", "Phone*", "Email", "City", "Country", "Intake", "Counsellor", "Stage", "Test", "Score", "Fee", "Notes"].map((h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              <tr className="text-slate-600">
+              <tr className="text-[color:var(--text-muted)]">
                 {["Simran Kaur", "+91 98765 43210", "simran@gmail.com", "Ludhiana", "Canada", "Jan 2027", "Neha Gupta", "Documentation", "IELTS", "7.5", "85000", "SOP pending"].map((c, i) => (
                   <td key={i} className="whitespace-nowrap px-3 py-2">{c}</td>
                 ))}
@@ -106,27 +106,27 @@ export default function ImportPage() {
         </div>
         <a
           href="/api/import/template"
-          className="mt-3 inline-block text-xs font-semibold text-orange-600 hover:underline"
+          className="mt-3 inline-block text-xs font-semibold text-accent hover:underline"
         >
           ⬇ Download a sample CSV
         </a>
       </div>
 
       {/* Upload */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="panel p-5">
         <input
           ref={inputRef}
           type="file"
           accept=".xlsx,.csv"
           onChange={(e) => pick(e.target.files?.[0])}
-          className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700"
+          className="block w-full text-sm text-[color:var(--text-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-ink-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ink-700"
         />
         {file && (
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               onClick={() => send(false)}
               disabled={busy}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+              className="rounded-lg bg-ink-800 px-4 py-2 text-[13px] font-semibold text-white transition hover:bg-ink-700 disabled:opacity-50"
             >
               {busy ? "Reading…" : "Preview"}
             </button>
@@ -134,7 +134,7 @@ export default function ImportPage() {
               <button
                 onClick={() => send(true)}
                 disabled={busy}
-                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50"
+                className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
               >
                 {busy ? "Importing…" : `Import ${preview.validCount} students`}
               </button>
@@ -161,9 +161,9 @@ export default function ImportPage() {
 
       {/* Preview */}
       {preview && (
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="space-y-3 panel p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <h3 className="font-display font-bold text-slate-800">Preview</h3>
+            <h3 className="font-display text-[15px] font-bold">Preview</h3>
             <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700">
               {preview.validCount} ready
             </span>
@@ -172,12 +172,12 @@ export default function ImportPage() {
                 {preview.errorCount} with problems
               </span>
             )}
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-[color:var(--text-faint)]">
               {preview.totalRows} rows in file
             </span>
           </div>
 
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-[color:var(--text-muted)]">
             <b>Columns matched:</b>{" "}
             {Object.entries(preview.mapped)
               .map(([h, f]) => `${h} → ${f}`)
@@ -193,7 +193,7 @@ export default function ImportPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="bg-slate-50 text-left text-slate-500">
+                <tr className="bg-slate-50 text-left text-[color:var(--text-muted)]">
                   <th className="px-3 py-2 font-semibold">Row</th>
                   <th className="px-3 py-2 font-semibold">Name</th>
                   <th className="px-3 py-2 font-semibold">Phone</th>
@@ -203,10 +203,10 @@ export default function ImportPage() {
                   <th className="px-3 py-2 font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-line">
                 {preview.rows.map((r) => (
                   <tr key={r.row} className={r.errors.length ? "bg-red-50/50" : ""}>
-                    <td className="px-3 py-2 text-slate-400">{r.row}</td>
+                    <td className="px-3 py-2 text-[color:var(--text-faint)]">{r.row}</td>
                     <td className="px-3 py-2 font-semibold text-slate-700">{r.name || "—"}</td>
                     <td className="px-3 py-2">{r.phone || "—"}</td>
                     <td className="px-3 py-2">{r.country}</td>
@@ -225,7 +225,7 @@ export default function ImportPage() {
             </table>
           </div>
           {preview.totalRows > preview.rows.length && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-[color:var(--text-faint)]">
               Showing the first {preview.rows.length} rows. All{" "}
               {preview.totalRows} will be processed on import.
             </p>

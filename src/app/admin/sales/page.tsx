@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatINR } from "@/lib/crm-data";
+import { formatINR, formatINRShort } from "@/lib/crm-data";
 
 type Fee = {
   studentId: string;
@@ -65,16 +65,16 @@ export default function SalesPage() {
   const maxMonth = Math.max(1, ...byMonth.map((m) => m.amount));
 
   if (loading) {
-    return <div className="py-16 text-center text-slate-400">Loading…</div>;
+    return <div className="py-16 text-center text-[color:var(--text-faint)]">Loading…</div>;
   }
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="font-display text-2xl font-bold text-slate-800">
-          Sales &amp; Payments 💰
+        <h1 className="font-display text-display-lg font-bold">
+          Sales &amp; Payments
         </h1>
-        <p className="mt-1 text-slate-500">
+        <p className="mt-1 text-[color:var(--text-muted)]">
           Fees billed, money collected and what is still outstanding.
         </p>
       </div>
@@ -86,13 +86,13 @@ export default function SalesPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <Kpi label="Collected" value={formatINR(totals?.collected ?? 0)} tone="text-green-600" sub={`${collectionRate}% of billed`} />
-        <Kpi label="Pending" value={formatINR(totals?.pending ?? 0)} tone="text-red-600" sub={`${dues.length} students owe`} />
-        <Kpi label="Total Billed" value={formatINR(totals?.billed ?? 0)} tone="text-slate-800" sub={`${totals?.students ?? 0} students`} />
-        <Kpi label="Visa Success" value={`${successRate}%`} tone="text-violet-600" sub={`${totals?.approved ?? 0} approved`} />
+        <Kpi label="Collected" value={formatINRShort(totals?.collected ?? 0)} title={formatINR(totals?.collected ?? 0)} tone="text-[color:var(--good)]" sub={`${collectionRate}% of billed`} />
+        <Kpi label="Pending" value={formatINRShort(totals?.pending ?? 0)} title={formatINR(totals?.pending ?? 0)} tone="text-[color:var(--crit)]" sub={`${dues.length} students owe`} />
+        <Kpi label="Total Billed" value={formatINRShort(totals?.billed ?? 0)} title={formatINR(totals?.billed ?? 0)} tone="text-[color:var(--text)]" sub={`${totals?.students ?? 0} students`} />
+        <Kpi label="Visa Success" value={`${successRate}%`} tone="text-[color:var(--info)]" sub={`${totals?.approved ?? 0} approved`} />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-px">
+      <div className="flex gap-2 overflow-x-auto border-b border-line pb-px">
         {([
           ["overview", "Overview"],
           ["dues", `Pending Dues (${dues.length})`],
@@ -103,8 +103,8 @@ export default function SalesPage() {
             onClick={() => setTab(k)}
             className={`whitespace-nowrap rounded-t-lg px-4 py-2.5 text-sm font-semibold transition ${
               tab === k
-                ? "border-b-2 border-orange-500 text-orange-600"
-                : "border-b-2 border-transparent text-slate-500 hover:text-slate-800"
+                ? "border-b-2 border-accent text-accent"
+                : "border-b-2 border-transparent text-[color:var(--text-muted)] hover:text-[color:var(--text)]"
             }`}
           >
             {l}
@@ -114,68 +114,69 @@ export default function SalesPage() {
 
       {tab === "overview" && (
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 font-display font-bold text-slate-800">
+          <div className="panel p-5">
+            <h3 className="mb-4 font-display text-[15px] font-bold">
               Revenue by Month
             </h3>
             {byMonth.length === 0 && (
-              <p className="py-6 text-center text-sm text-slate-400">
+              <p className="py-6 text-center text-sm text-[color:var(--text-faint)]">
                 No payments recorded yet.
               </p>
             )}
             <div className="space-y-3">
               {byMonth.map(({ month, amount }) => (
                 <div key={month} className="flex items-center gap-3">
-                  <span className="w-20 shrink-0 text-xs font-medium text-slate-600">
+                  <span className="w-16 shrink-0 text-[12.5px] text-[color:var(--text-muted)]">
                     {new Date(month + "-01T00:00:00Z").toLocaleDateString("en-GB", {
                       month: "short",
                       year: "2-digit",
                       timeZone: "UTC",
                     })}
                   </span>
-                  <div className="h-6 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-[18px] flex-1 overflow-hidden rounded-[4px] bg-surface-sunk">
                     <div
-                      className="flex h-full items-center justify-end rounded-full bg-gradient-to-r from-green-500 to-green-600 px-2 text-[11px] font-bold text-white"
-                      style={{ width: `${Math.max(8, (amount / maxMonth) * 100)}%` }}
-                    >
-                      {formatINR(amount)}
-                    </div>
+                      className="h-full rounded-[4px] bg-[color:var(--info)] animate-grow-x"
+                      style={{ width: `${Math.max(2, (amount / maxMonth) * 100)}%` }}
+                    />
                   </div>
+                  <span className="w-24 shrink-0 text-right font-display text-[12.5px] font-bold tabular-nums">
+                    {formatINRShort(amount)}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 font-display font-bold text-slate-800">
+          <div className="panel p-5">
+            <h3 className="mb-4 font-display text-[15px] font-bold">
               By Counsellor
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                  <tr className="text-left text-xs uppercase tracking-wide text-[color:var(--text-faint)]">
                     <th className="pb-2 font-semibold">Counsellor</th>
                     <th className="pb-2 text-right font-semibold">Students</th>
                     <th className="pb-2 text-right font-semibold">Collected</th>
                     <th className="pb-2 text-right font-semibold">Pending</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-line">
                   {byCounsellor.map((v) => (
                     <tr key={v.counsellor}>
                       <td className="py-2 font-semibold text-slate-700">{v.counsellor}</td>
-                      <td className="py-2 text-right text-slate-500">{v.students}</td>
-                      <td className="py-2 text-right font-semibold text-green-600">
+                      <td className="py-2 text-right text-[color:var(--text-muted)]">{v.students}</td>
+                      <td className="py-2 text-right font-semibold text-[color:var(--good)]">
                         {formatINR(v.collected)}
                       </td>
-                      <td className="py-2 text-right text-red-600">
+                      <td className="py-2 text-right text-[color:var(--crit)]">
                         {formatINR(v.pending)}
                       </td>
                     </tr>
                   ))}
                   {byCounsellor.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-6 text-center text-sm text-slate-400">
+                      <td colSpan={4} className="py-6 text-center text-sm text-[color:var(--text-faint)]">
                         No data yet.
                       </td>
                     </tr>
@@ -192,11 +193,11 @@ export default function SalesPage() {
           head={["Student", "Counsellor", "Total Fee", "Paid", "Pending"]}
           empty="Nothing outstanding — everyone has paid in full 🎉"
           rows={dues.map((f) => [
-            <span key="n" className="font-semibold text-slate-800">{f.studentName}</span>,
+            <span key="n" className="font-semibold text-[color:var(--text)]">{f.studentName}</span>,
             f.counsellor,
             formatINR(f.totalFee),
-            <span key="p" className="text-green-600">{formatINR(f.paid)}</span>,
-            <span key="d" className="font-bold text-red-600">{formatINR(f.pending)}</span>,
+            <span key="p" className="text-[color:var(--good)]">{formatINR(f.paid)}</span>,
+            <span key="d" className="font-bold text-[color:var(--crit)]">{formatINR(f.pending)}</span>,
           ])}
         />
       )}
@@ -207,10 +208,10 @@ export default function SalesPage() {
           empty="No payments recorded yet. Add them from a student's Payments tab in the CRM."
           rows={payments.map((p) => [
             p.paidOn,
-            <span key="n" className="font-semibold text-slate-800">{p.studentName}</span>,
+            <span key="n" className="font-semibold text-[color:var(--text)]">{p.studentName}</span>,
             p.purpose,
             p.method,
-            <span key="a" className="font-bold text-green-600">{formatINR(p.amount)}</span>,
+            <span key="a" className="font-bold text-[color:var(--good)]">{formatINR(p.amount)}</span>,
           ])}
         />
       )}
@@ -223,19 +224,24 @@ function Kpi({
   value,
   sub,
   tone,
+  title,
 }: {
   label: string;
   value: string;
   sub: string;
   tone: string;
+  title?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-        {label}
+    <div className="panel px-4 py-3.5">
+      <div className="eyebrow">{label}</div>
+      <div
+        title={title}
+        className={`mt-1.5 font-display text-stat font-bold tabular-nums ${tone}`}
+      >
+        {value}
       </div>
-      <div className={`mt-1 font-display text-2xl font-extrabold ${tone}`}>{value}</div>
-      <div className="text-xs text-slate-500">{sub}</div>
+      <div className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">{sub}</div>
     </div>
   );
 }
@@ -250,11 +256,11 @@ function Table({
   empty: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="overflow-hidden panel">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <tr className="border-b border-line bg-surface-sunk text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-[color:var(--text-faint)]">
               {head.map((h) => (
                 <th key={h} className="whitespace-nowrap px-4 py-3 font-semibold">
                   {h}
@@ -262,9 +268,9 @@ function Table({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-line">
             {rows.map((r, i) => (
-              <tr key={i} className="hover:bg-orange-50/40">
+              <tr key={i} className="hover:bg-accent/[0.04]">
                 {r.map((c, j) => (
                   <td key={j} className="whitespace-nowrap px-4 py-3">
                     {c}
@@ -274,7 +280,7 @@ function Table({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={head.length} className="px-4 py-10 text-center text-sm text-slate-400">
+                <td colSpan={head.length} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
                   {empty}
                 </td>
               </tr>

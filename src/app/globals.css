@@ -2,15 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================================================================
+   Design tokens
+   ---------------------------------------------------------------------------
+   The console is a tool people sit in all day, so the ground is a warm
+   off-white rather than pure white, and the accent is spent only on actions.
+   Status colours are a separate family — a green here always means "good",
+   never "series 2".
+   ========================================================================= */
 :root {
-  /* Default brand palette as "R G B" triplets (overridable from admin). */
-  --brand-orange: 233 122 46;
-  --brand-orange-dark: 201 95 26;
-  --brand-orange-light: 255 179 122;
-  --brand-navy: 30 58 138;
-  --brand-navy-dark: 16 37 88;
-  --brand-navy-light: 59 91 191;
-  --brand-cream: 255 248 241;
+  /* Shell */
+  --ink-900: #0c1626;
+  --ink-800: #132038;
+  --ink-700: #1b2c49;
+  --ink-600: #26395a;
+
+  /* Ground & surfaces */
+  --ground: #f6f5f2;
+  --surface: #ffffff;
+  --surface-sunk: #f2f1ed;
+
+  /* Text — warm-biased greys, picked to sit on the ground above */
+  --text: #131a26;
+  --text-muted: #5b6577;
+  --text-faint: #8b94a3;
+  --line: #e6e4de;
+  --line-strong: #d6d3ca;
+
+  /* Brand */
+  --brand: #1e3a8a;
+  --accent: #d9661c;
+  --accent-soft: #fdf1e7;
+
+  /* Status — reserved, never used for decoration */
+  --good: #0f7a52;
+  --good-soft: #e6f4ee;
+  --warn: #a35a06;
+  --warn-soft: #fdf1e0;
+  --crit: #b02a1f;
+  --crit-soft: #fdecea;
+  --info: #1b5aa8;
+  --info-soft: #e8f0fb;
 }
 
 @layer base {
@@ -19,6 +51,13 @@
   }
   body {
     @apply bg-white text-slate-800 font-sans antialiased;
+  }
+
+  /* Figures line up in columns wherever they are compared. */
+  .tnum,
+  table td,
+  table th {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -37,5 +76,113 @@
   }
   .section-subtitle {
     @apply mt-3 text-base sm:text-lg text-slate-600 max-w-2xl;
+  }
+
+  /* ---- Console primitives ------------------------------------------- */
+
+  /* An uppercase micro-label. Letter-spacing is what stops it reading as
+     shouted body text. */
+  .eyebrow {
+    @apply text-[10.5px] font-bold uppercase tracking-[0.13em] text-[color:var(--text-faint)];
+  }
+
+  .panel {
+    @apply rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)];
+  }
+
+  .btn-ghost {
+    @apply rounded-lg border border-[color:var(--line-strong)] bg-[color:var(--surface)] px-3.5 py-2 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:bg-[color:var(--surface-sunk)] hover:text-[color:var(--text)];
+  }
+
+  /* Data tables: tight rows, quiet rules, a heading row that recedes. */
+  .data-table {
+    @apply w-full text-[13.5px];
+  }
+  .data-table thead th {
+    @apply border-b border-[color:var(--line)] bg-[color:var(--surface-sunk)] px-4 py-2.5 text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-[color:var(--text-faint)];
+  }
+  .data-table tbody td {
+    @apply border-b border-[color:var(--line)] px-4 py-2.5 align-middle;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .data-table tbody tr {
+    @apply transition-colors;
+  }
+  .data-table tbody tr:hover {
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
+  }
+}
+
+/* ===========================================================================
+   Motion
+   ---------------------------------------------------------------------------
+   Entrances are short and staggered so a screen assembles rather than pops.
+   Anything decorative is dropped entirely under reduced-motion.
+   ========================================================================= */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-fade {
+  animation: fade 0.28s ease-out both;
+}
+.animate-grow-x {
+  transform-origin: left center;
+  animation: grow-x 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Stagger children by index without a style attribute per element. */
+.stagger > * {
+  animation: rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1)  { animation-delay: 0.02s }
+.stagger > *:nth-child(2)  { animation-delay: 0.05s }
+.stagger > *:nth-child(3)  { animation-delay: 0.08s }
+.stagger > *:nth-child(4)  { animation-delay: 0.11s }
+.stagger > *:nth-child(5)  { animation-delay: 0.14s }
+.stagger > *:nth-child(6)  { animation-delay: 0.17s }
+.stagger > *:nth-child(7)  { animation-delay: 0.20s }
+.stagger > *:nth-child(8)  { animation-delay: 0.23s }
+.stagger > *:nth-child(n + 9) { animation-delay: 0.26s }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-fade,
+  .animate-grow-x,
+  .stagger > * {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
   }
 }

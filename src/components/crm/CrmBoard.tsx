@@ -9,6 +9,7 @@ import {
   formatScore,
   isIeltsPass,
   priorityColor,
+  stageFill,
   relativeDue,
   stageColor,
   Student,
@@ -226,10 +227,9 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         <div>
           {showHeader && (
             <>
-              <h1 className="font-display text-2xl font-bold text-slate-800">
-                Student CRM 🎓
-              </h1>
-              <p className="mt-0.5 text-sm text-slate-500">{TODAY_LABEL}</p>
+              <p className="eyebrow">Caseload</p>
+              <h1 className="mt-1 font-display text-display-lg font-bold">Students</h1>
+              <p className="mt-1 text-[14px] text-[color:var(--text-muted)]">{TODAY_LABEL}</p>
             </>
           )}
         </div>
@@ -249,23 +249,28 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       {mode === "demo" && <SetupPanel error={error} />}
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-px">
+      <div className="flex gap-1 overflow-x-auto border-b border-line">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setView(t.key)}
-            className={`flex items-center gap-2 whitespace-nowrap rounded-t-lg px-4 py-2.5 text-sm font-semibold transition ${
+            className={`relative flex items-center gap-2 whitespace-nowrap px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${
               view === t.key
-                ? "border-b-2 border-orange-500 text-orange-600"
-                : "border-b-2 border-transparent text-slate-500 hover:text-slate-800"
+                ? "text-[color:var(--text)]"
+                : "text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]"
             }`}
           >
             {t.label}
             {!!t.badge && t.badge > 0 && (
-              <span className="rounded-full bg-orange-500 px-1.5 text-[11px] font-bold text-white">
+              <span className="rounded-full bg-accent px-1.5 text-[10.5px] font-bold tabular-nums text-white">
                 {t.badge}
               </span>
             )}
+            <span
+              className={`absolute inset-x-2 -bottom-px h-[2px] rounded-t bg-accent transition-opacity duration-200 ${
+                view === t.key ? "opacity-100" : "opacity-0"
+              }`}
+            />
           </button>
         ))}
       </div>
@@ -415,10 +420,10 @@ function Dashboard({
   const newLeads = students.filter((s) => s.stage === "Enquiry").length;
 
   const kpis = [
-    { label: "Total Students", value: total, sub: "in pipeline", tone: "text-slate-800" },
-    { label: "Visas Approved", value: approved, sub: "success stories", tone: "text-green-600" },
-    { label: "In Progress", value: inProgress, sub: "active applications", tone: "text-orange-500" },
-    { label: "New Leads", value: newLeads, sub: "awaiting counselling", tone: "text-violet-600" },
+    { label: "Total Students", value: total, sub: "in pipeline", tone: "text-[color:var(--text)]" },
+    { label: "Visas Approved", value: approved, sub: "success stories", tone: "text-[color:var(--good)]" },
+    { label: "In Progress", value: inProgress, sub: "active applications", tone: "text-[color:var(--info)]" },
+    { label: "New Leads", value: newLeads, sub: "awaiting counselling", tone: "text-[color:var(--text-muted)]" },
   ];
 
   const stageCounts = VISA_STAGES.map((st) => ({
@@ -444,25 +449,25 @@ function Dashboard({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          <div key={k.label} className="panel p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">
               {k.label}
             </div>
             <div className={`mt-1 font-display text-3xl font-extrabold ${k.tone}`}>
               {k.value}
             </div>
-            <div className="text-xs text-slate-500">{k.sub}</div>
+            <div className="text-xs text-[color:var(--text-muted)]">{k.sub}</div>
           </div>
         ))}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+        <div className="panel p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-display font-bold text-slate-800">Students by Visa Stage</h3>
+            <h3 className="font-display text-[15px] font-bold">Students by Visa Stage</h3>
             <button
               onClick={() => onGoto("pipeline")}
-              className="text-xs font-semibold text-orange-600 hover:underline"
+              className="text-[12.5px] font-semibold text-accent hover:underline"
             >
               View pipeline →
             </button>
@@ -471,35 +476,39 @@ function Dashboard({
             {stageCounts.map((s) => (
               <div key={s.stage} className="flex items-center gap-3">
                 <div className="w-32 shrink-0 text-xs font-medium text-slate-600">{s.stage}</div>
-                <div className="h-6 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-[18px] flex-1 overflow-hidden rounded-[4px] bg-surface-sunk">
                   <div
-                    className="flex h-full items-center justify-end rounded-full bg-gradient-to-r from-slate-600 to-slate-800 px-2 text-[11px] font-bold text-white transition-all"
-                    style={{ width: `${(s.count / maxStage) * 100}%` }}
-                  >
-                    {s.count > 0 && s.count}
-                  </div>
+                    className="h-full rounded-[4px] animate-grow-x"
+                    style={{
+                      width: `${(s.count / maxStage) * 100}%`,
+                      background: stageFill(s.stage),
+                    }}
+                  />
                 </div>
+                <span className="w-8 shrink-0 text-right font-display text-[13px] font-bold tabular-nums">
+                  {s.count}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 font-display font-bold text-slate-800">IELTS / PTE Readiness</h3>
+        <div className="panel p-5">
+          <h3 className="mb-3 font-display text-[15px] font-bold">IELTS / PTE Readiness</h3>
           <div className="flex justify-center">
             <ProgressRing percent={passRate} />
           </div>
           <div className="mt-4 space-y-1.5 text-sm">
             <div className="flex justify-between">
-              <span className="text-slate-500">Test takers</span>
-              <span className="font-semibold text-slate-800">{testTakers.length}</span>
+              <span className="text-[color:var(--text-muted)]">Test takers</span>
+              <span className="font-semibold text-[color:var(--text)]">{testTakers.length}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Target achieved</span>
+              <span className="text-[color:var(--text-muted)]">Target achieved</span>
               <span className="font-semibold text-green-600">{passing}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-500">Still preparing</span>
+              <span className="text-[color:var(--text-muted)]">Still preparing</span>
               <span className="font-semibold text-orange-500">
                 {testTakers.length - passing}
               </span>
@@ -509,9 +518,9 @@ function Dashboard({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+        <div className="panel p-5 lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display font-bold text-slate-800">
+            <h3 className="font-display text-[15px] font-bold">
               Today&apos;s Follow-ups
               <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-600">
                 {todaysFollowUps.length}
@@ -519,14 +528,14 @@ function Dashboard({
             </h3>
             <button
               onClick={() => onGoto("students")}
-              className="text-xs font-semibold text-orange-600 hover:underline"
+              className="text-[12.5px] font-semibold text-accent hover:underline"
             >
               All students →
             </button>
           </div>
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-line">
             {todaysFollowUps.length === 0 && (
-              <p className="py-6 text-center text-sm text-slate-400">
+              <p className="py-6 text-center text-sm text-[color:var(--text-faint)]">
                 All caught up — no follow-ups pending 🎉
               </p>
             )}
@@ -534,8 +543,8 @@ function Dashboard({
               <div key={s.id} className="flex items-center gap-3 py-2.5">
                 <Avatar name={s.name} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-slate-800">{s.name}</div>
-                  <div className="truncate text-xs text-slate-500">{s.notes}</div>
+                  <div className="truncate text-sm font-semibold text-[color:var(--text)]">{s.name}</div>
+                  <div className="truncate text-xs text-[color:var(--text-muted)]">{s.notes}</div>
                 </div>
                 <span
                   className={`hidden shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 sm:inline ${stageColor(
@@ -557,8 +566,8 @@ function Dashboard({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 font-display font-bold text-slate-800">By Destination</h3>
+        <div className="panel p-5">
+          <h3 className="mb-4 font-display text-[15px] font-bold">By Destination</h3>
           <div className="space-y-3">
             {countryCounts
               .sort((a, b) => b.count - a.count)
@@ -572,13 +581,13 @@ function Dashboard({
                       style={{ width: `${(c.count / Math.max(1, students.length)) * 100}%` }}
                     />
                   </div>
-                  <span className="w-5 text-right text-sm font-bold text-slate-800">
+                  <span className="w-5 text-right text-sm font-bold text-[color:var(--text)]">
                     {c.count}
                   </span>
                 </div>
               ))}
             {countryCounts.length === 0 && (
-              <p className="py-4 text-center text-sm text-slate-400">No students yet.</p>
+              <p className="py-4 text-center text-sm text-[color:var(--text-faint)]">No students yet.</p>
             )}
           </div>
         </div>
@@ -642,22 +651,22 @@ function Students({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 panel p-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--text-faint)]">
             <SearchIcon />
           </span>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search name, ID, city, phone…"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-orange-400 focus:bg-white"
+            className="w-full rounded-xl border border-line-strong bg-surface-sunk py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-accent focus:bg-white"
           />
         </div>
         <select
           value={stageFilter}
           onChange={(e) => setStageFilter(e.target.value as VisaStage | "All")}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All stages</option>
           {VISA_STAGES.map((s) => (
@@ -669,7 +678,7 @@ function Students({
         <select
           value={countryFilter}
           onChange={(e) => setCountryFilter(e.target.value as Country | "All")}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All countries</option>
           {COUNTRIES.map((c) => (
@@ -680,17 +689,17 @@ function Students({
         </select>
         <button
           onClick={() => setShowAdd(true)}
-          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600"
+          className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95"
         >
           + Add Student
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden panel">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-line bg-surface-sunk text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-[color:var(--text-faint)]">
                 <th className="px-4 py-3 font-semibold">Student</th>
                 <th className="px-4 py-3 font-semibold">Destination</th>
                 <th className="px-4 py-3 font-semibold">Test / Score</th>
@@ -700,15 +709,15 @@ function Students({
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {filtered.map((s) => (
-                <tr key={s.id} className="transition hover:bg-orange-50/40">
+                <tr key={s.id} className="transition hover:bg-accent/[0.04]">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <Avatar name={s.name} />
                       <div>
-                        <div className="font-semibold text-slate-800">{s.name}</div>
-                        <div className="text-xs text-slate-400">
+                        <div className="font-semibold text-[color:var(--text)]">{s.name}</div>
+                        <div className="text-xs text-[color:var(--text-faint)]">
                           {s.id} · {s.city}
                         </div>
                       </div>
@@ -719,7 +728,7 @@ function Students({
                       <span>{countryFlag(s.country)}</span>
                       <span className="text-slate-700">{s.country}</span>
                     </div>
-                    <div className="text-xs text-slate-400">{s.intake}</div>
+                    <div className="text-xs text-[color:var(--text-faint)]">{s.intake}</div>
                   </td>
                   <td className="px-4 py-3">
                     <ScoreCell student={s} />
@@ -736,17 +745,17 @@ function Students({
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs font-medium ${
-                        s.nextFollowUp <= TODAY ? "text-red-600" : "text-slate-500"
+                        s.nextFollowUp <= TODAY ? "text-red-600" : "text-[color:var(--text-muted)]"
                       }`}
                     >
                       {relativeDue(s.nextFollowUp)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-500">{s.counsellor}</td>
+                  <td className="px-4 py-3 text-xs text-[color:var(--text-muted)]">{s.counsellor}</td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => setEditing(s)}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
+                      className="rounded-lg border border-line-strong px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent"
                     >
                       Manage
                     </button>
@@ -755,7 +764,7 @@ function Students({
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
                     {students.length === 0
                       ? "No students yet — add your first one above."
                       : "No students match your filters."}
@@ -765,7 +774,7 @@ function Students({
             </tbody>
           </table>
         </div>
-        <div className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-400">
+        <div className="border-t border-line px-4 py-2.5 text-xs text-[color:var(--text-faint)]">
           Showing {filtered.length} of {students.length} students
         </div>
       </div>
@@ -796,18 +805,18 @@ function Students({
 
 function ScoreCell({ student }: { student: Student }) {
   if (student.testType === "Not Taken" || student.score === null) {
-    return <span className="text-xs italic text-slate-400">Not taken yet</span>;
+    return <span className="text-xs italic text-[color:var(--text-faint)]">Not taken yet</span>;
   }
   const pass = isIeltsPass(student);
   return (
     <div className="flex items-center gap-2">
-      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-[color:var(--text-muted)]">
         {student.testType}
       </span>
       <span className={`font-bold ${pass ? "text-green-600" : "text-orange-500"}`}>
         {formatScore(student)}
       </span>
-      <span className="text-xs text-slate-400">
+      <span className="text-xs text-[color:var(--text-faint)]">
         / target{" "}
         {student.testType === "IELTS" ? student.targetScore.toFixed(1) : student.targetScore}
       </span>
@@ -832,7 +841,7 @@ function Pipeline({
 }) {
   return (
     <div>
-      <p className="mb-4 text-sm text-slate-500">
+      <p className="mb-4 text-sm text-[color:var(--text-muted)]">
         Use the arrows to move a student through the visa journey. Changes save
         automatically.
       </p>
@@ -860,16 +869,16 @@ function Pipeline({
                       <div className="flex items-center gap-2">
                         <Avatar name={s.name} />
                         <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-slate-800">
+                          <div className="truncate text-sm font-semibold text-[color:var(--text)]">
                             {s.name}
                           </div>
-                          <div className="text-xs text-slate-400">
+                          <div className="text-xs text-[color:var(--text-faint)]">
                             {countryFlag(s.country)} {s.country}
                           </div>
                         </div>
                       </div>
                       <div className="mt-2 flex items-center justify-between">
-                        <span className="text-[11px] text-slate-400">
+                        <span className="text-[11px] text-[color:var(--text-faint)]">
                           {s.testType !== "Not Taken"
                             ? `${s.testType} ${formatScore(s)}`
                             : "No test"}
@@ -878,7 +887,7 @@ function Pipeline({
                           <button
                             onClick={() => onMove(s, -1)}
                             disabled={idx === 0}
-                            className="rounded-md border border-slate-200 px-1.5 text-xs text-slate-500 transition hover:bg-slate-50 disabled:opacity-30"
+                            className="rounded-md border border-slate-200 px-1.5 text-xs text-[color:var(--text-muted)] transition hover:bg-slate-50 disabled:opacity-30"
                             title="Move back"
                           >
                             ←
@@ -886,7 +895,7 @@ function Pipeline({
                           <button
                             onClick={() => onMove(s, 1)}
                             disabled={idx === VISA_STAGES.length - 1}
-                            className="rounded-md border border-slate-200 px-1.5 text-xs text-slate-500 transition hover:bg-slate-50 disabled:opacity-30"
+                            className="rounded-md border border-slate-200 px-1.5 text-xs text-[color:var(--text-muted)] transition hover:bg-slate-50 disabled:opacity-30"
                             title="Advance"
                           >
                             →
@@ -933,11 +942,11 @@ function Tasks({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="panel p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-display font-bold text-slate-800">Today&apos;s Progress</h3>
-            <p className="text-xs text-slate-500">
+            <h3 className="font-display text-[15px] font-bold">Today&apos;s Progress</h3>
+            <p className="text-xs text-[color:var(--text-muted)]">
               {doneCount} of {tasks.length} tasks completed
             </p>
           </div>
@@ -979,7 +988,7 @@ function Tasks({
         {shown.map((t) => (
           <div
             key={t.id}
-            className={`flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition ${
+            className={`flex items-center gap-3 panel p-4 transition ${
               t.done ? "opacity-60" : ""
             }`}
           >
@@ -996,16 +1005,16 @@ function Tasks({
             <div className="min-w-0 flex-1">
               <div
                 className={`text-sm font-semibold ${
-                  t.done ? "text-slate-400 line-through" : "text-slate-800"
+                  t.done ? "text-[color:var(--text-faint)] line-through" : "text-[color:var(--text)]"
                 }`}
               >
                 {t.title}
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-[color:var(--text-faint)]">
                 {t.studentName} · {relativeDue(t.due)}
               </div>
             </div>
-            <span className="hidden rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500 sm:inline">
+            <span className="hidden rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-[color:var(--text-muted)] sm:inline">
               {t.type}
             </span>
             <span
@@ -1018,7 +1027,7 @@ function Tasks({
           </div>
         ))}
         {shown.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-slate-400">
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-12 text-center text-sm text-[color:var(--text-faint)]">
             Nothing here — great job! 🎉
           </div>
         )}
@@ -1053,8 +1062,8 @@ function ManageStudentModal({
         <div className="flex items-center gap-3 rounded-xl bg-orange-50 p-3">
           <Avatar name={student.name} big />
           <div>
-            <div className="font-semibold text-slate-800">{student.name}</div>
-            <div className="text-xs text-slate-500">
+            <div className="font-semibold text-[color:var(--text)]">{student.name}</div>
+            <div className="text-xs text-[color:var(--text-muted)]">
               {student.id} · {student.phone}
             </div>
           </div>
@@ -1064,7 +1073,7 @@ function ManageStudentModal({
           <select
             value={draft.stage}
             onChange={(e) => setDraft({ ...draft, stage: e.target.value as VisaStage })}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           >
             {VISA_STAGES.map((s) => (
               <option key={s}>{s}</option>
@@ -1077,7 +1086,7 @@ function ManageStudentModal({
             <select
               value={draft.testType}
               onChange={(e) => setDraft({ ...draft, testType: e.target.value as TestType })}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             >
               <option>IELTS</option>
               <option>PTE</option>
@@ -1096,7 +1105,7 @@ function ManageStudentModal({
                   score: e.target.value === "" ? null : Number(e.target.value),
                 })
               }
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400 disabled:bg-slate-50"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent disabled:bg-slate-50"
             />
           </Field>
         </div>
@@ -1114,7 +1123,7 @@ function ManageStudentModal({
               <select
                 value={draft.telecaller ?? ""}
                 onChange={(e) => setDraft({ ...draft, telecaller: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
               >
                 <option value="">— not assigned —</option>
                 {telecallers.map((t) => (
@@ -1132,7 +1141,7 @@ function ManageStudentModal({
             type="date"
             value={draft.nextFollowUp}
             onChange={(e) => setDraft({ ...draft, nextFollowUp: e.target.value })}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           />
         </Field>
 
@@ -1141,7 +1150,7 @@ function ManageStudentModal({
             value={draft.notes}
             onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
             rows={3}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           />
         </Field>
 
@@ -1154,7 +1163,7 @@ function ManageStudentModal({
           </button>
           <button
             onClick={() => onSave({ ...draft, lastUpdated: TODAY })}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600"
+            className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95"
           >
             Save changes
           </button>
@@ -1189,7 +1198,7 @@ function CounsellorPicker({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="e.g. Simran Kaur"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
         />
         {options.length > 0 && (
           <button
@@ -1198,7 +1207,7 @@ function CounsellorPicker({
               setTyping(false);
               onChange(options[0]);
             }}
-            className="shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+            className="shrink-0 rounded-xl border border-slate-200 px-3 text-xs font-semibold text-[color:var(--text-muted)] hover:bg-slate-50"
           >
             Pick
           </button>
@@ -1216,7 +1225,7 @@ function CounsellorPicker({
           onChange("");
         } else onChange(e.target.value);
       }}
-      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+      className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
     >
       {options.map((c) => (
         <option key={c} value={c}>
@@ -1254,7 +1263,7 @@ function AddStudentModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Priya Sharma"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </Field>
           <Field label="Phone / WhatsApp *">
@@ -1262,7 +1271,7 @@ function AddStudentModal({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+91 …"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </Field>
           <Field label="City">
@@ -1270,14 +1279,14 @@ function AddStudentModal({
               value={city}
               onChange={(e) => setCity(e.target.value)}
               placeholder="e.g. Ludhiana"
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </Field>
           <Field label="Destination">
             <select
               value={country}
               onChange={(e) => setCountry(e.target.value as Country)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             >
               {COUNTRIES.map((c) => (
                 <option key={c}>{c}</option>
@@ -1310,7 +1319,7 @@ function AddStudentModal({
               })
             }
             disabled={!canSave}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Add student
           </button>
@@ -1339,10 +1348,10 @@ function Modal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="font-display text-lg font-bold text-slate-800">{title}</h3>
+          <h3 className="font-display text-lg font-bold text-[color:var(--text)]">{title}</h3>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--text-faint)] transition hover:bg-slate-100 hover:text-slate-600"
           >
             ✕
           </button>
@@ -1356,7 +1365,7 @@ function Modal({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-[color:var(--text-muted)]">{label}</span>
       {children}
     </label>
   );
@@ -1369,19 +1378,10 @@ function Avatar({ name, big }: { name: string; big?: boolean }) {
     .slice(0, 2)
     .join("")
     .toUpperCase();
-  const colors = [
-    "bg-slate-700",
-    "bg-orange-500",
-    "bg-violet-500",
-    "bg-cyan-600",
-    "bg-emerald-600",
-    "bg-rose-500",
-  ];
-  const color = colors[(name.charCodeAt(0) || 0) % colors.length];
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white ${color} ${
-        big ? "h-12 w-12 text-sm" : "h-9 w-9 text-xs"
+      className={`flex shrink-0 items-center justify-center rounded-full bg-surface-sunk font-semibold text-[color:var(--text-muted)] ring-1 ring-[color:var(--line)] ${
+        big ? "h-11 w-11 text-[13px]" : "h-8 w-8 text-[11px]"
       }`}
     >
       {initials}
@@ -1402,7 +1402,7 @@ function ProgressRing({ percent }: { percent: number }) {
           cy="60"
           r={r}
           fill="none"
-          stroke="#f97316"
+          stroke="var(--info)"
           strokeWidth="12"
           strokeLinecap="round"
           strokeDasharray={c}
@@ -1411,8 +1411,10 @@ function ProgressRing({ percent }: { percent: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-display text-2xl font-extrabold text-slate-800">{percent}%</span>
-        <span className="text-[10px] font-semibold text-slate-400">on target</span>
+        <span className="font-display text-[22px] font-bold tabular-nums text-[color:var(--text)]">
+          {percent}%
+        </span>
+        <span className="text-[10px] font-semibold text-[color:var(--text-faint)]">on target</span>
       </div>
     </div>
   );
@@ -1482,24 +1484,24 @@ function Payments({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Collected</div>
+        <div className="panel p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">Collected</div>
           <div className="mt-1 font-display text-2xl font-extrabold text-green-600">{inr(collected)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Pending</div>
+        <div className="panel p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">Pending</div>
           <div className="mt-1 font-display text-2xl font-extrabold text-red-600">{inr(pending)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Billed</div>
-          <div className="mt-1 font-display text-2xl font-extrabold text-slate-800">{inr(billed)}</div>
+        <div className="panel p-4">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">Billed</div>
+          <div className="mt-1 font-display text-2xl font-extrabold text-[color:var(--text)]">{inr(billed)}</div>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <button
           onClick={() => setShowAdd(true)}
-          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+          className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95"
         >
           + Record Payment
         </button>
@@ -1512,24 +1514,24 @@ function Payments({
       </div>
 
       {/* Outstanding */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+      <div className="overflow-hidden panel">
+        <div className="border-b border-line px-4 py-3 text-sm font-bold text-[color:var(--text)]">
           Pending Dues
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
                 <th className="px-4 py-2.5 font-semibold">Student</th>
                 <th className="px-4 py-2.5 font-semibold">Fee</th>
                 <th className="px-4 py-2.5 font-semibold">Paid</th>
                 <th className="px-4 py-2.5 font-semibold">Pending</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {owing.map((f) => (
-                <tr key={f.studentId} className="hover:bg-orange-50/40">
-                  <td className="px-4 py-2.5 font-semibold text-slate-800">{f.studentName}</td>
+                <tr key={f.studentId} className="hover:bg-accent/[0.04]">
+                  <td className="px-4 py-2.5 font-semibold text-[color:var(--text)]">{f.studentName}</td>
                   <td className="px-4 py-2.5">{inr(f.totalFee)}</td>
                   <td className="px-4 py-2.5 text-green-600">{inr(f.paid)}</td>
                   <td className="px-4 py-2.5 font-bold text-red-600">{inr(f.pending)}</td>
@@ -1537,7 +1539,7 @@ function Payments({
               ))}
               {owing.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={4} className="px-4 py-8 text-center text-sm text-[color:var(--text-faint)]">
                     No pending dues. Set a fee on a student to start tracking.
                   </td>
                 </tr>
@@ -1548,14 +1550,14 @@ function Payments({
       </div>
 
       {/* Recent payments */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+      <div className="overflow-hidden panel">
+        <div className="border-b border-line px-4 py-3 text-sm font-bold text-[color:var(--text)]">
           Recent Payments
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
                 <th className="px-4 py-2.5 font-semibold">Date</th>
                 <th className="px-4 py-2.5 font-semibold">Student</th>
                 <th className="px-4 py-2.5 font-semibold">Purpose</th>
@@ -1564,20 +1566,20 @@ function Payments({
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {payments.slice(0, 25).map((p) => (
-                <tr key={p.id} className="hover:bg-orange-50/40">
-                  <td className="px-4 py-2.5 text-slate-500">{p.paidOn}</td>
-                  <td className="px-4 py-2.5 font-semibold text-slate-800">{p.studentName}</td>
+                <tr key={p.id} className="hover:bg-accent/[0.04]">
+                  <td className="px-4 py-2.5 text-[color:var(--text-muted)]">{p.paidOn}</td>
+                  <td className="px-4 py-2.5 font-semibold text-[color:var(--text)]">{p.studentName}</td>
                   <td className="px-4 py-2.5">{p.purpose}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{p.method}</td>
+                  <td className="px-4 py-2.5 text-[color:var(--text-muted)]">{p.method}</td>
                   <td className="px-4 py-2.5 font-bold text-green-600">{inr(p.amount)}</td>
                   <td className="px-4 py-2.5 text-right">
                     <button
                       onClick={() => {
                         if (confirm(`Delete this ${inr(p.amount)} payment?`)) onDelete(p.id);
                       }}
-                      className="text-xs font-semibold text-slate-400 hover:text-red-600"
+                      className="text-xs font-semibold text-[color:var(--text-faint)] hover:text-red-600"
                     >
                       Delete
                     </button>
@@ -1586,7 +1588,7 @@ function Payments({
               ))}
               {payments.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-[color:var(--text-faint)]">
                     No payments recorded yet.
                   </td>
                 </tr>
@@ -1654,7 +1656,7 @@ function PaymentModal({
           <select
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           >
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -1671,7 +1673,7 @@ function PaymentModal({
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="e.g. 85000"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           />
         </Field>
 
@@ -1682,7 +1684,7 @@ function PaymentModal({
                 <select
                   value={purpose}
                   onChange={(e) => setPurpose(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
                 >
                   {["Consultation", "Application", "Coaching", "Visa Fee", "Other"].map((p) => (
                     <option key={p}>{p}</option>
@@ -1693,7 +1695,7 @@ function PaymentModal({
                 <select
                   value={method}
                   onChange={(e) => setMethod(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
                 >
                   {["Cash", "UPI", "Bank Transfer", "Card", "Cheque"].map((m) => (
                     <option key={m}>{m}</option>
@@ -1706,7 +1708,7 @@ function PaymentModal({
                 type="date"
                 value={paidOn}
                 onChange={(e) => setPaidOn(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </Field>
             <Field label="Note (optional)">
@@ -1714,7 +1716,7 @@ function PaymentModal({
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="e.g. 2nd instalment"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
             </Field>
           </>
@@ -1732,7 +1734,7 @@ function PaymentModal({
           <button
             onClick={save}
             disabled={busy || !studentId || !amount}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+            className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
           >
             {busy ? "Saving…" : feeMode ? "Save fee" : "Record payment"}
           </button>
@@ -1795,7 +1797,7 @@ function Tests({ students }: { students: Student[] }) {
         <select
           value={filterStudent}
           onChange={(e) => setFilterStudent(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All students</option>
           {students.map((s) => (
@@ -1806,7 +1808,7 @@ function Tests({ students }: { students: Student[] }) {
         </select>
         <button
           onClick={() => setShowAdd(true)}
-          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+          className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95"
         >
           + Record Test
         </button>
@@ -1815,8 +1817,8 @@ function Tests({ students }: { students: Student[] }) {
       {bySection.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {bySection.map((b) => (
-            <div key={b.section} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <div key={b.section} className="panel p-4">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">
                 {b.section}
               </div>
               <div
@@ -1826,7 +1828,7 @@ function Tests({ students }: { students: Student[] }) {
               >
                 {b.avg}%
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-[color:var(--text-muted)]">
                 latest, {b.count} student{b.count === 1 ? "" : "s"}
               </div>
             </div>
@@ -1834,11 +1836,11 @@ function Tests({ students }: { students: Student[] }) {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden panel">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-line bg-surface-sunk text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-[color:var(--text-faint)]">
                 <th className="px-4 py-3 font-semibold">Date</th>
                 <th className="px-4 py-3 font-semibold">Student</th>
                 <th className="px-4 py-3 font-semibold">Type</th>
@@ -1848,15 +1850,15 @@ function Tests({ students }: { students: Student[] }) {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {shown.map((t) => {
                 const pct = Math.round((t.score / t.maxScore) * 100);
                 return (
-                  <tr key={t.id} className="hover:bg-orange-50/40">
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-500">{t.takenOn}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{t.studentName}</td>
+                  <tr key={t.id} className="hover:bg-accent/[0.04]">
+                    <td className="whitespace-nowrap px-4 py-3 text-[color:var(--text-muted)]">{t.takenOn}</td>
+                    <td className="px-4 py-3 font-semibold text-[color:var(--text)]">{t.studentName}</td>
                     <td className="px-4 py-3">
-                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-[color:var(--text-muted)]">
                         {t.exam} · {t.kind}
                       </span>
                     </td>
@@ -1869,13 +1871,13 @@ function Tests({ students }: { students: Student[] }) {
                       >
                         {t.score}
                       </span>
-                      <span className="text-xs text-slate-400"> / {t.maxScore}</span>
+                      <span className="text-xs text-[color:var(--text-faint)]"> / {t.maxScore}</span>
                     </td>
-                    <td className="max-w-[220px] truncate px-4 py-3 text-slate-500">{t.note}</td>
+                    <td className="max-w-[220px] truncate px-4 py-3 text-[color:var(--text-muted)]">{t.note}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={() => remove(t.id)}
-                        className="text-xs font-semibold text-slate-400 hover:text-red-600"
+                        className="text-xs font-semibold text-[color:var(--text-faint)] hover:text-red-600"
                       >
                         Delete
                       </button>
@@ -1885,14 +1887,14 @@ function Tests({ students }: { students: Student[] }) {
               })}
               {!loading && shown.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
                     No test records yet — add the first one above.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
                     Loading…
                   </td>
                 </tr>
@@ -1958,7 +1960,7 @@ function AddTestModal({
           <select
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           >
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -1973,7 +1975,7 @@ function AddTestModal({
             <select
               value={exam}
               onChange={(e) => setExam(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             >
               <option>PTE</option>
               <option>IELTS</option>
@@ -1983,7 +1985,7 @@ function AddTestModal({
             <select
               value={kind}
               onChange={(e) => setKind(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             >
               {["Weekly", "Sessional", "Mock", "Practice"].map((k) => (
                 <option key={k}>{k}</option>
@@ -2020,7 +2022,7 @@ function AddTestModal({
               max={maxScore}
               value={score}
               onChange={(e) => setScore(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </Field>
           <Field label="Taken on">
@@ -2028,7 +2030,7 @@ function AddTestModal({
               type="date"
               value={takenOn}
               onChange={(e) => setTakenOn(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
             />
           </Field>
         </div>
@@ -2038,7 +2040,7 @@ function AddTestModal({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="e.g. fluency improving, needs pronunciation work"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           />
         </Field>
 
@@ -2054,7 +2056,7 @@ function AddTestModal({
           <button
             onClick={save}
             disabled={busy || !studentId || score === ""}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+            className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
           >
             {busy ? "Saving…" : "Save score"}
           </button>
@@ -2132,7 +2134,7 @@ function Attendance({ students }: { students: Student[] }) {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         />
         <button
           onClick={() => markAll("Present")}
@@ -2143,12 +2145,12 @@ function Attendance({ students }: { students: Student[] }) {
         <button
           onClick={save}
           disabled={saving || Object.keys(marks).length === 0}
-          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-40"
+          className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
         >
           {saving ? "Saving…" : "Save attendance"}
         </button>
         {counts.map((c) => (
-          <span key={c.st} className="text-xs text-slate-500">
+          <span key={c.st} className="text-xs text-[color:var(--text-muted)]">
             {c.st}: <b className="text-slate-700">{c.n}</b>
           </span>
         ))}
@@ -2160,17 +2162,17 @@ function Attendance({ students }: { students: Student[] }) {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+      <div className="overflow-hidden panel">
+        <div className="border-b border-line px-4 py-3 text-sm font-bold text-[color:var(--text)]">
           Mark attendance · {date}
         </div>
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-line">
           {students.map((s) => (
             <div key={s.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <Avatar name={s.name} />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-slate-800">{s.name}</div>
-                <div className="text-xs text-slate-400">{s.id}</div>
+                <div className="truncate text-sm font-semibold text-[color:var(--text)]">{s.name}</div>
+                <div className="text-xs text-[color:var(--text-faint)]">{s.id}</div>
               </div>
               <div className="flex gap-1.5">
                 {ATT_STATUSES.map((st) => {
@@ -2186,7 +2188,7 @@ function Attendance({ students }: { students: Student[] }) {
                       className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                         on
                           ? `${tone} text-white`
-                          : "bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-50"
+                          : "bg-white text-[color:var(--text-muted)] ring-1 ring-slate-200 hover:bg-slate-50"
                       }`}
                     >
                       {st}
@@ -2197,21 +2199,21 @@ function Attendance({ students }: { students: Student[] }) {
             </div>
           ))}
           {students.length === 0 && (
-            <div className="px-4 py-10 text-center text-sm text-slate-400">
+            <div className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
               No students to mark.
             </div>
           )}
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-4 py-3 text-sm font-bold text-slate-800">
+      <div className="overflow-hidden panel">
+        <div className="border-b border-line px-4 py-3 text-sm font-bold text-[color:var(--text)]">
           Attendance Record
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="bg-slate-50 text-left text-xs uppercase tracking-wide text-[color:var(--text-muted)]">
                 <th className="px-4 py-2.5 font-semibold">Student</th>
                 <th className="px-4 py-2.5 font-semibold">Present</th>
                 <th className="px-4 py-2.5 font-semibold">Absent</th>
@@ -2220,14 +2222,14 @@ function Attendance({ students }: { students: Student[] }) {
                 <th className="px-4 py-2.5 font-semibold">Rate</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {summary.map((a) => (
-                <tr key={a.studentId} className="hover:bg-orange-50/40">
-                  <td className="px-4 py-2.5 font-semibold text-slate-800">{a.studentName}</td>
+                <tr key={a.studentId} className="hover:bg-accent/[0.04]">
+                  <td className="px-4 py-2.5 font-semibold text-[color:var(--text)]">{a.studentName}</td>
                   <td className="px-4 py-2.5 text-green-600">{a.present}</td>
                   <td className="px-4 py-2.5 text-red-600">{a.absent}</td>
                   <td className="px-4 py-2.5 text-amber-600">{a.late}</td>
-                  <td className="px-4 py-2.5 text-slate-500">{a.leave}</td>
+                  <td className="px-4 py-2.5 text-[color:var(--text-muted)]">{a.leave}</td>
                   <td className="px-4 py-2.5">
                     <span
                       className={`font-bold ${
@@ -2236,13 +2238,13 @@ function Attendance({ students }: { students: Student[] }) {
                     >
                       {a.percent}%
                     </span>
-                    <span className="text-xs text-slate-400"> of {a.total}</span>
+                    <span className="text-xs text-[color:var(--text-faint)]"> of {a.total}</span>
                   </td>
                 </tr>
               ))}
               {!loading && summary.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-slate-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-sm text-[color:var(--text-faint)]">
                     No attendance marked yet.
                   </td>
                 </tr>
@@ -2306,7 +2308,7 @@ function Documents({ students }: { students: Student[] }) {
         <select
           value={filterStudent}
           onChange={(e) => setFilterStudent(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+          className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All students</option>
           {students.map((s) => (
@@ -2317,20 +2319,20 @@ function Documents({ students }: { students: Student[] }) {
         </select>
         <button
           onClick={() => setShowUpload(true)}
-          className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600"
+          className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95"
         >
           + Upload Document
         </button>
-        <span className="text-xs text-slate-500">
+        <span className="text-xs text-[color:var(--text-muted)]">
           {shown.length} file{shown.length === 1 ? "" : "s"} · {fileSize(totalSize)}
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden panel">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-line bg-surface-sunk text-left text-[10.5px] font-bold uppercase tracking-[0.1em] text-[color:var(--text-faint)]">
                 <th className="px-4 py-3 font-semibold">File</th>
                 <th className="px-4 py-3 font-semibold">Student</th>
                 <th className="px-4 py-3 font-semibold">Type</th>
@@ -2339,42 +2341,42 @@ function Documents({ students }: { students: Student[] }) {
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-line">
               {shown.map((d) => (
-                <tr key={d.id} className="hover:bg-orange-50/40">
+                <tr key={d.id} className="hover:bg-accent/[0.04]">
                   <td className="max-w-[260px] px-4 py-3">
-                    <div className="truncate font-semibold text-slate-800">{d.name}</div>
+                    <div className="truncate font-semibold text-[color:var(--text)]">{d.name}</div>
                   </td>
                   <td className="px-4 py-3 text-slate-600">{d.studentName}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-[color:var(--text-muted)]">
                       {d.kind}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">
+                  <td className="whitespace-nowrap px-4 py-3 text-[color:var(--text-muted)]">
                     {fileSize(d.size)}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-400">
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-[color:var(--text-faint)]">
                     {d.uploadedAt.slice(0, 10)} · {d.uploadedBy}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
                     {canPreview(d.mime) && (
                       <button
                         onClick={() => setViewing(d)}
-                        className="mr-2 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
+                        className="mr-2 rounded-lg border border-line-strong px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent"
                       >
                         View
                       </button>
                     )}
                     <a
                       href={`/api/documents/${d.id}`}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-orange-400 hover:text-orange-600"
+                      className="rounded-lg border border-line-strong px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent"
                     >
                       Download
                     </a>
                     <button
                       onClick={() => remove(d)}
-                      className="ml-2 text-xs font-semibold text-slate-400 hover:text-red-600"
+                      className="ml-2 text-xs font-semibold text-[color:var(--text-faint)] hover:text-red-600"
                     >
                       Delete
                     </button>
@@ -2383,7 +2385,7 @@ function Documents({ students }: { students: Student[] }) {
               ))}
               {!loading && shown.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
                     No documents yet — upload a passport, offer letter or score
                     report and it will be here whenever you need it.
                   </td>
@@ -2391,7 +2393,7 @@ function Documents({ students }: { students: Student[] }) {
               )}
               {loading && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-slate-400">
+                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
                     Loading…
                   </td>
                 </tr>
@@ -2461,7 +2463,7 @@ function UploadModal({
           <select
             value={studentId}
             onChange={(e) => setStudentId(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-orange-400"
+            className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-accent"
           >
             {students.map((s) => (
               <option key={s.id} value={s.id}>
@@ -2499,7 +2501,7 @@ function UploadModal({
             }}
             className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-700"
           />
-          <span className="mt-1 block text-[11px] text-slate-400">
+          <span className="mt-1 block text-[11px] text-[color:var(--text-faint)]">
             PDF, JPG or PNG works best. Up to 5 MB per file.
           </span>
         </Field>
@@ -2521,7 +2523,7 @@ function UploadModal({
           <button
             onClick={upload}
             disabled={busy || !file || !studentId}
-            className="rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-40"
+            className="rounded-xl bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:opacity-40"
           >
             {busy ? "Uploading…" : "Upload"}
           </button>
@@ -2561,8 +2563,8 @@ function ViewerModal({ doc, onClose }: { doc: DocMeta; onClose: () => void }) {
       >
         <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
           <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold text-slate-800">{doc.name}</div>
-            <div className="text-xs text-slate-500">
+            <div className="truncate font-semibold text-[color:var(--text)]">{doc.name}</div>
+            <div className="text-xs text-[color:var(--text-muted)]">
               {doc.studentName} · {doc.kind} · {fileSize(doc.size)}
             </div>
           </div>
@@ -2574,7 +2576,7 @@ function ViewerModal({ doc, onClose }: { doc: DocMeta; onClose: () => void }) {
           </a>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--text-faint)] hover:bg-slate-100 hover:text-slate-600"
             aria-label="Close"
           >
             ✕

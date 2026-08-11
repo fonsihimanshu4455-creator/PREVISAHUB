@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import CallingPanel from "@/components/crm/CallingPanel";
 import StaffLogin, { StaffAccount } from "@/components/staff/StaffLogin";
+import Icon from "@/components/admin/Icon";
 
 /**
  * The telecallers' own entrance. Separate from /staff so a caller has one URL
@@ -30,7 +31,7 @@ export default function CallingPage() {
 
   if (!ready) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-400">
+      <div className="flex min-h-screen items-center justify-center bg-ground text-[color:var(--text-faint)]">
         Loading…
       </div>
     );
@@ -40,7 +41,7 @@ export default function CallingPage() {
     return (
       <StaffLogin
         expect="telecaller"
-        icon="📞"
+        icon="phone"
         title="Calling Panel"
         subtitle="Sign in to see the numbers assigned to you."
         otherLabel="Counsellor?"
@@ -51,25 +52,25 @@ export default function CallingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-ground">
+      <header className="sticky top-0 z-20 border-b border-line bg-surface">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="text-xl">📞</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent"><Icon name="phone" className="h-4 w-4" strokeWidth={2} /></span>
             <div className="leading-tight">
-              <div className="font-display text-sm font-bold text-slate-800">
+              <div className="font-display text-sm font-bold text-[color:var(--text)]">
                 Pre Visa Hub
               </div>
-              <div className="text-[10px] tracking-widest text-slate-400">
+              <div className="text-[10px] tracking-widest text-[color:var(--text-faint)]">
                 CALLING PANEL
               </div>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-slate-600 sm:inline">{staff.name}</span>
+            <span className="hidden text-sm text-[color:var(--text-muted)] sm:inline">{staff.name}</span>
             <button
               onClick={logout}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-[color:var(--text-muted)] transition hover:bg-ground"
             >
               Logout
             </button>
@@ -78,10 +79,10 @@ export default function CallingPage() {
       </header>
       <main className="mx-auto max-w-5xl p-4 sm:p-6">
         <div className="mb-4">
-          <h1 className="font-display text-2xl font-bold text-slate-800">
+          <h1 className="font-display text-2xl font-bold text-[color:var(--text)]">
             My Calling List
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500">
+          <p className="mt-0.5 text-sm text-[color:var(--text-muted)]">
             Numbers assigned to {staff.name}
           </p>
         </div>

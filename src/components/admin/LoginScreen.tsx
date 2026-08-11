@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Icon from "@/components/admin/Icon";
 
 
 export default function LoginScreen({
@@ -26,14 +27,14 @@ export default function LoginScreen({
     <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
       <form
         onSubmit={submit}
-        className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-2xl"
+        className="w-full max-w-sm rounded-2xl bg-surface p-8 shadow-2xl"
       >
         <div className="text-center">
-          <div className="text-4xl">🔶</div>
-          <h1 className="mt-3 font-display text-xl font-bold text-slate-800">
+          <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-accent-soft text-accent"><Icon name="logo" className="h-5 w-5" strokeWidth={2} /></span>
+          <h1 className="mt-3 font-display text-xl font-bold text-[color:var(--text)]">
             Pre Visa Hub Admin
           </h1>
-          <p className="mt-1 text-sm text-slate-500">Enter your password to continue</p>
+          <p className="mt-1 text-sm text-[color:var(--text-muted)]">Enter your password to continue</p>
         </div>
         <input
           type="password"
@@ -52,18 +53,18 @@ export default function LoginScreen({
         <button
           type="submit"
           disabled={busy}
-          className="mt-4 w-full rounded-lg bg-orange-500 px-4 py-3 text-sm font-semibold text-white hover:bg-orange-600 transition disabled:opacity-60"
+          className="mt-4 w-full rounded-lg bg-accent px-4 py-3 text-[13.5px] font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
         >
           {busy ? "Logging in…" : "Login"}
         </button>
-        <p className="mt-5 text-center text-xs text-slate-400">
+        <p className="mt-5 text-center text-xs text-[color:var(--text-faint)]">
           Counsellor?{" "}
-          <a href="/staff" className="font-semibold text-orange-600 hover:underline">
+          <a href="/staff" className="font-semibold text-accent hover:underline">
             Staff portal
           </a>
           {" · "}
           Telecaller?{" "}
-          <a href="/calling" className="font-semibold text-orange-600 hover:underline">
+          <a href="/calling" className="font-semibold text-accent hover:underline">
             Calling panel
           </a>
         </p>
