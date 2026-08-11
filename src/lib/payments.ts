@@ -366,3 +366,26 @@ export async function reportSummary(counsellor?: string): Promise<ReportSummary>
     paymentsCount: Number(countRow?.n ?? 0),
   };
 }
+
+/** Just the two money figures the dashboard shows. */
+export async function moneyTotals(
+  counsellor?: string
+): Promise<{ pending: number; collected: number }> {
+  if (!sql) return { pending: 0, collected: 0 };
+  await ensureSchema();
+  await ensurePaymentsSchema();
+  const scoped = counsellor ?? null;
+  const [row] = await sql<{ collected: string; pending: string }[]>`
+    WITH paid AS (
+      SELECT student_id, SUM(amount) AS paid FROM payments GROUP BY student_id
+    )
+    SELECT COALESCE(SUM(COALESCE(p.paid, 0)), 0)                            AS collected,
+           COALESCE(SUM(GREATEST(s.total_fee - COALESCE(p.paid, 0), 0)), 0) AS pending
+    FROM students s LEFT JOIN paid p ON p.student_id = s.id
+    WHERE ${scoped === null ? sql`TRUE` : sql`lower(s.counsellor) = lower(${scoped})`}
+  `;
+  return {
+    collected: Number(row?.collected ?? 0),
+    pending: Number(row?.pending ?? 0),
+  };
+}

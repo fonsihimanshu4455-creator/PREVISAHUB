@@ -274,25 +274,63 @@ function toTask(r: TaskRow): Task {
  * caseload — staff sessions use this so they only ever see their own
  * students; the admin calls it without a filter and sees everyone.
  */
-export async function listStudents(counsellor?: string): Promise<Student[]> {
+export type StudentQuery = {
+  counsellor?: string;
+  q?: string;
+  stage?: string;
+  country?: string;
+  limit?: number;
+};
+
+/**
+ * Search and filter run in SQL rather than shipping every row for the browser
+ * to sift — the full list was a 200 KB download that only grew. `limit` caps
+ * a page; `total` tells the UI how much matched.
+ */
+export async function listStudents(
+  arg?: string | StudentQuery
+): Promise<{ students: Student[]; total: number }> {
+  const opts: StudentQuery = typeof arg === "string" ? { counsellor: arg } : arg ?? {};
+  const { counsellor, q = "", stage = "", country = "", limit = 200 } = opts;
+
   if (!sql) {
-    return counsellor
+    let list = counsellor
       ? SEED_STUDENTS.filter(
           (s) => s.counsellor.toLowerCase() === counsellor.toLowerCase()
         )
       : SEED_STUDENTS;
+    const needle = q.trim().toLowerCase();
+    if (needle) {
+      list = list.filter((s) =>
+        [s.name, s.id, s.city, s.phone].some((v) => v.toLowerCase().includes(needle))
+      );
+    }
+    if (stage) list = list.filter((s) => s.stage === stage);
+    if (country) list = list.filter((s) => s.country === country);
+    return { students: list.slice(0, limit), total: list.length };
   }
+
   await ensureSchema();
-  const rows = counsellor
-    ? await sql<StudentRow[]>`
-        SELECT * FROM students
-        WHERE lower(counsellor) = lower(${counsellor})
-        ORDER BY created_at DESC, id DESC
-      `
-    : await sql<StudentRow[]>`
-        SELECT * FROM students ORDER BY created_at DESC, id DESC
-      `;
-  return rows.map(toStudent);
+  const needle = q.trim();
+  const where = sql`
+    ${counsellor ? sql`lower(counsellor) = lower(${counsellor})` : sql`TRUE`}
+    AND ${stage ? sql`stage = ${stage}` : sql`TRUE`}
+    AND ${country ? sql`country = ${country}` : sql`TRUE`}
+    AND ${
+      needle
+        ? sql`(name ILIKE ${"%" + needle + "%"} OR id ILIKE ${"%" + needle + "%"}
+               OR city ILIKE ${"%" + needle + "%"} OR phone ILIKE ${"%" + needle + "%"})`
+        : sql`TRUE`
+    }
+  `;
+  const [rows, [count]] = await Promise.all([
+    sql<StudentRow[]>`
+      SELECT * FROM students WHERE ${where}
+      ORDER BY created_at DESC, id DESC LIMIT ${limit}
+    `,
+    sql<{ n: string }[]>`SELECT COUNT(*) AS n FROM students WHERE ${where}`,
+  ]);
+  return { students: rows.map(toStudent), total: Number(count?.n ?? 0) };
 }
 
 /** Is this student assigned to this counsellor? Used to gate staff writes. */
@@ -439,4 +477,53 @@ export async function listCounsellors(): Promise<string[]> {
     ORDER BY name
   `;
   return rows.map((r) => r.name);
+}
+
+/** Counts and the short follow-up list the dashboard needs — no row dump. */
+export async function overview(counsellor?: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (!sql) {
+    const mine = counsellor
+      ? SEED_STUDENTS.filter(
+          (s) => s.counsellor.toLowerCase() === counsellor.toLowerCase()
+        )
+      : SEED_STUDENTS;
+    return {
+      total: mine.length,
+      byStage: Object.fromEntries(
+        mine.reduce((m, s) => m.set(s.stage, (m.get(s.stage) ?? 0) + 1), new Map())
+      ) as Record<string, number>,
+      dueCount: mine.filter((s) => s.nextFollowUp <= today).length,
+      due: mine
+        .filter((s) => s.nextFollowUp <= today)
+        .slice(0, 8)
+        .map((s) => ({ id: s.id, name: s.name, notes: s.notes, phone: s.phone })),
+    };
+  }
+  await ensureSchema();
+  const scoped = counsellor ?? null;
+  const where = scoped === null ? sql`TRUE` : sql`lower(counsellor) = lower(${scoped})`;
+
+  const [stageRows, [counts], due] = await Promise.all([
+    sql<{ stage: string; n: string }[]>`
+      SELECT stage, COUNT(*) AS n FROM students WHERE ${where} GROUP BY stage
+    `,
+    sql<{ total: string; due: string }[]>`
+      SELECT COUNT(*) AS total,
+             COUNT(*) FILTER (WHERE next_follow_up <> '' AND next_follow_up <= ${today}) AS due
+      FROM students WHERE ${where}
+    `,
+    sql<{ id: string; name: string; notes: string | null; phone: string }[]>`
+      SELECT id, name, notes, phone FROM students
+      WHERE ${where} AND next_follow_up <> '' AND next_follow_up <= ${today}
+      ORDER BY next_follow_up ASC LIMIT 8
+    `,
+  ]);
+
+  return {
+    total: Number(counts?.total ?? 0),
+    byStage: Object.fromEntries(stageRows.map((r) => [r.stage, Number(r.n)])),
+    dueCount: Number(counts?.due ?? 0),
+    due: due.map((d) => ({ ...d, notes: d.notes ?? "" })),
+  };
 }

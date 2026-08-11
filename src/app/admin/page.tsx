@@ -8,21 +8,18 @@ import Icon from "@/components/admin/Icon";
 import Stat from "@/components/admin/Stat";
 import { formatINR, formatINRShort, stageFill, VISA_STAGES, VisaStage } from "@/lib/crm-data";
 
-type Student = {
-  id: string;
-  name: string;
-  stage: VisaStage;
-  counsellor: string;
-  nextFollowUp: string;
-  notes: string;
-  phone: string;
+type Overview = {
+  total: number;
+  byStage: Record<string, number>;
+  dueCount: number;
+  due: { id: string; name: string; notes: string; phone: string }[];
 };
 
 export default function AdminDashboard() {
   const { exportJson, importJson, reset, storage } = useSiteContent();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [students, setStudents] = useState<Student[]>([]);
+  const [ov, setOv] = useState<Overview | null>(null);
   const [pending, setPending] = useState(0);
   const [collected, setCollected] = useState(0);
   const [loaded, setLoaded] = useState(false);
@@ -30,15 +27,11 @@ export default function AdminDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const [rs, rr] = await Promise.all([
-          fetch("/api/students").then((r) => r.json()),
-          fetch("/api/reports").then((r) => r.json()),
-        ]);
-        if (Array.isArray(rs.students)) setStudents(rs.students);
-        if (rr.totals) {
-          setPending(rr.totals.pending ?? 0);
-          setCollected(rr.totals.collected ?? 0);
-        }
+        // One aggregated request covers the whole page.
+        const ro = await fetch("/api/overview").then((r) => r.json());
+        if (typeof ro?.total === "number") setOv(ro);
+        if (typeof ro?.pending === "number") setPending(ro.pending);
+        if (typeof ro?.collected === "number") setCollected(ro.collected);
       } catch {
         /* the shortcuts below still work without figures */
       }
@@ -46,17 +39,16 @@ export default function AdminDashboard() {
     })();
   }, []);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const dueToday = students.filter((s) => s.nextFollowUp && s.nextFollowUp <= today);
-  const approved = students.filter((s) => s.stage === "Approved").length;
-  const inProgress = students.filter(
-    (s) => !["Approved", "Rejected", "Enquiry"].includes(s.stage)
-  ).length;
+  const total = ov?.total ?? 0;
+  const dueToday = ov?.due ?? [];
+  const dueCount = ov?.dueCount ?? 0;
+  const stageCount = (st: VisaStage) => ov?.byStage?.[st] ?? 0;
+  const approved = stageCount("Approved");
+  const inProgress = VISA_STAGES.filter(
+    (st) => !["Approved", "Rejected", "Enquiry"].includes(st)
+  ).reduce((a, st) => a + stageCount(st), 0);
 
-  const byStage = VISA_STAGES.map((st) => ({
-    stage: st,
-    count: students.filter((s) => s.stage === st).length,
-  }));
+  const byStage = VISA_STAGES.map((st) => ({ stage: st, count: stageCount(st) }));
   const maxStage = Math.max(1, ...byStage.map((s) => s.count));
 
   const download = () => {
@@ -96,8 +88,8 @@ export default function AdminDashboard() {
               day: "numeric",
               month: "long",
             })}
-            {loaded && students.length > 0 && (
-              <> · {dueToday.length} follow-up{dueToday.length === 1 ? "" : "s"} due</>
+            {loaded && total > 0 && (
+              <> · {dueCount} follow-up{dueCount === 1 ? "" : "s"} due</>
             )}
           </p>
         </div>
@@ -124,8 +116,8 @@ export default function AdminDashboard() {
 
       {/* Figures */}
       <div className="grid grid-cols-2 gap-3 stagger xl:grid-cols-4">
-        <Stat label="Students" value={students.length} sub={`${inProgress} in progress`} />
-        <Stat label="Follow-ups due" value={dueToday.length} sub="today" tone={dueToday.length ? "warn" : "neutral"} />
+        <Stat label="Students" value={total} sub={`${inProgress} in progress`} />
+        <Stat label="Follow-ups due" value={dueCount} sub="today" tone={dueCount ? "warn" : "neutral"} />
         <Stat label="Pending fees" value={pending} sub="outstanding" tone={pending ? "crit" : "neutral"} format={formatINRShort} title={formatINR(pending)} />
         <Stat label="Collected" value={collected} sub={`${approved} visas approved`} tone="good" format={formatINRShort} title={formatINR(collected)} />
       </div>
@@ -163,7 +155,7 @@ export default function AdminDashboard() {
                 </span>
               </div>
             ))}
-            {loaded && students.length === 0 && (
+            {loaded && total === 0 && (
               <p className="py-6 text-center text-[13.5px] text-[color:var(--text-faint)]">
                 No students yet.{" "}
                 <Link href="/admin/import" prefetch={false} className="font-semibold text-accent hover:underline">
@@ -180,16 +172,16 @@ export default function AdminDashboard() {
           <header className="flex items-center justify-between border-b border-line px-5 py-3.5">
             <h2 className="font-display text-[15px] font-bold">Due today</h2>
             <span className="rounded-full bg-surface-sunk px-2 py-0.5 text-[11px] font-bold tabular-nums text-[color:var(--text-muted)]">
-              {dueToday.length}
+              {dueCount}
             </span>
           </header>
           <div className="divide-y divide-line">
-            {dueToday.slice(0, 6).map((s) => (
+            {dueToday.map((s) => (
               <div key={s.id} className="flex items-center gap-3 px-5 py-2.5">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[13.5px] font-semibold">{s.name}</div>
                   <div className="truncate text-[12px] text-[color:var(--text-faint)]">
-                    {s.notes || s.counsellor}
+                    {s.notes}
                   </div>
                 </div>
                 <a
@@ -202,7 +194,7 @@ export default function AdminDashboard() {
                 </a>
               </div>
             ))}
-            {loaded && dueToday.length === 0 && (
+            {loaded && dueCount === 0 && (
               <p className="px-5 py-10 text-center text-[13.5px] text-[color:var(--text-faint)]">
                 Nothing due — you&apos;re clear.
               </p>

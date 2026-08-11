@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import CallingPanel from "@/components/crm/CallingPanel";
 import {
@@ -105,6 +105,9 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [payments, setPayments] = useState<PaymentRec[]>([]);
   const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
   const [counsellors, setCounsellors] = useState<string[]>([]);
+  const [total, setTotal] = useState(0);
+  const [query, setQuery] = useState({ q: "", stage: "All", country: "All" });
+  const [searching, setSearching] = useState(false);
   const [telecallers, setTelecallers] = useState<string[]>([]);
   const [role, setRole] = useState<"admin" | "staff">("admin");
 
@@ -124,6 +127,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
           return;
         }
         if (Array.isArray(rs.students)) setStudents(rs.students);
+        if (typeof rs.total === "number") setTotal(rs.total);
         if (Array.isArray(rt.tasks)) setTasks(rt.tasks);
         setMode(rs.mode === "db" ? "db" : "demo");
         if (rs.role) setRole(rs.role);
@@ -195,6 +199,32 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     await loadMoney();
   }
 
+  // Searching and filtering happen in SQL, so the browser never holds the
+  // whole table. Debounced, because this runs on every keystroke.
+  const firstQuery = useRef(true);
+  useEffect(() => {
+    if (firstQuery.current) {
+      firstQuery.current = false;
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(async () => {
+      const p = new URLSearchParams();
+      if (query.q) p.set("q", query.q);
+      if (query.stage !== "All") p.set("stage", query.stage);
+      if (query.country !== "All") p.set("country", query.country);
+      try {
+        const r = await fetch(`/api/students?${p}`).then((x) => x.json());
+        if (Array.isArray(r.students)) setStudents(r.students);
+        if (typeof r.total === "number") setTotal(r.total);
+      } catch {
+        /* keep whatever is on screen */
+      }
+      setSearching(false);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
   // Fetch fees/payments the first time the Payments tab is opened, so the
   // dashboard is not held up by data it does not show.
   const [moneyLoaded, setMoneyLoaded] = useState(false);
@@ -233,16 +263,6 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
             </>
           )}
         </div>
-        {mode === "db" ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-            Live · Database
-          </span>
-        ) : (
-          <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
-            {mode === "loading" ? "Connecting…" : "Demo data"}
-          </span>
-        )}
       </div>
 
       {/* Setup hint when there is no database yet */}
@@ -282,6 +302,10 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
           counsellors={counsellors}
           telecallers={telecallers}
           canReassign={role === "admin"}
+          query={query}
+          onQuery={setQuery}
+          total={total}
+          searching={searching}
           onAdd={addStudent}
           onUpdate={updateStudent}
         />
@@ -604,6 +628,10 @@ function Students({
   counsellors,
   telecallers,
   canReassign,
+  query,
+  onQuery,
+  total,
+  searching,
   onAdd,
   onUpdate,
 }: {
@@ -611,29 +639,16 @@ function Students({
   counsellors: string[];
   telecallers: string[];
   canReassign: boolean;
+  query: { q: string; stage: string; country: string };
+  onQuery: (q: { q: string; stage: string; country: string }) => void;
+  total: number;
+  searching: boolean;
   onAdd: (input: NewStudentInput) => void | Promise<void>;
   onUpdate: (id: string, patch: Partial<Student>) => void | Promise<void>;
 }) {
-  const [query, setQuery] = useState("");
-  const [stageFilter, setStageFilter] = useState<VisaStage | "All">("All");
-  const [countryFilter, setCountryFilter] = useState<Country | "All">("All");
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
-
-  const filtered = useMemo(() => {
-    return students.filter((s) => {
-      const q = query.toLowerCase();
-      const matchesQuery =
-        !q ||
-        s.name.toLowerCase().includes(q) ||
-        s.id.toLowerCase().includes(q) ||
-        s.city.toLowerCase().includes(q) ||
-        s.phone.includes(q);
-      const matchesStage = stageFilter === "All" || s.stage === stageFilter;
-      const matchesCountry = countryFilter === "All" || s.country === countryFilter;
-      return matchesQuery && matchesStage && matchesCountry;
-    });
-  }, [students, query, stageFilter, countryFilter]);
+  const filtered = students;
 
   function saveStudent(updated: Student) {
     onUpdate(updated.id, {
@@ -657,15 +672,15 @@ function Students({
             <SearchIcon />
           </span>
           <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={query.q}
+            onChange={(e) => onQuery({ ...query, q: e.target.value })}
             placeholder="Search name, ID, city, phone…"
             className="w-full rounded-xl border border-line-strong bg-surface-sunk py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-accent focus:bg-white"
           />
         </div>
         <select
-          value={stageFilter}
-          onChange={(e) => setStageFilter(e.target.value as VisaStage | "All")}
+          value={query.stage}
+          onChange={(e) => onQuery({ ...query, stage: e.target.value })}
           className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All stages</option>
@@ -676,8 +691,8 @@ function Students({
           ))}
         </select>
         <select
-          value={countryFilter}
-          onChange={(e) => setCountryFilter(e.target.value as Country | "All")}
+          value={query.country}
+          onChange={(e) => onQuery({ ...query, country: e.target.value })}
           className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All countries</option>
@@ -765,9 +780,9 @@ function Students({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
-                    {students.length === 0
+                    {total === 0 && !query.q && query.stage === "All" && query.country === "All"
                       ? "No students yet — add your first one above."
-                      : "No students match your filters."}
+                      : "No students match your search."}
                   </td>
                 </tr>
               )}
@@ -775,7 +790,11 @@ function Students({
           </table>
         </div>
         <div className="border-t border-line px-4 py-2.5 text-xs text-[color:var(--text-faint)]">
-          Showing {filtered.length} of {students.length} students
+          {searching
+            ? "Searching…"
+            : `Showing ${filtered.length}${
+                total > filtered.length ? ` of ${total}` : ""
+              } student${total === 1 ? "" : "s"}`}
         </div>
       </div>
 

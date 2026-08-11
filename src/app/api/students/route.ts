@@ -8,19 +8,25 @@ export const dynamic = "force-dynamic";
 // Student records are personal data, so every route here requires a session —
 // reads included, unlike the public site-content endpoint. Staff sessions are
 // scoped to their own caseload.
-export async function GET() {
+export async function GET(req: Request) {
   const session = await requireCrmAccess();
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   try {
-    const students = await listStudents(
-      session.role === "staff" ? session.staff.name : undefined
-    );
+    const p = new URL(req.url).searchParams;
+    const { students, total } = await listStudents({
+      counsellor: session.role === "staff" ? session.staff.name : undefined,
+      q: p.get("q") ?? "",
+      stage: p.get("stage") ?? "",
+      country: p.get("country") ?? "",
+      limit: Math.min(500, Number(p.get("limit")) || 200),
+    });
     return NextResponse.json({
       mode: dbEnabled ? "db" : "demo",
       role: session.role,
       students,
+      total,
     });
   } catch (e) {
     return NextResponse.json(
