@@ -279,6 +279,8 @@ export type StudentQuery = {
   q?: string;
   stage?: string;
   country?: string;
+  /** "today" narrows to students whose follow-up is due. */
+  due?: string;
   limit?: number;
 };
 
@@ -291,7 +293,8 @@ export async function listStudents(
   arg?: string | StudentQuery
 ): Promise<{ students: Student[]; total: number }> {
   const opts: StudentQuery = typeof arg === "string" ? { counsellor: arg } : arg ?? {};
-  const { counsellor, q = "", stage = "", country = "", limit = 200 } = opts;
+  const { counsellor, q = "", stage = "", country = "", due = "", limit = 200 } = opts;
+  const today = new Date().toISOString().slice(0, 10);
 
   if (!sql) {
     let list = counsellor
@@ -307,6 +310,7 @@ export async function listStudents(
     }
     if (stage) list = list.filter((s) => s.stage === stage);
     if (country) list = list.filter((s) => s.country === country);
+    if (due === "today") list = list.filter((s) => s.nextFollowUp && s.nextFollowUp <= today);
     return { students: list.slice(0, limit), total: list.length };
   }
 
@@ -316,6 +320,11 @@ export async function listStudents(
     ${counsellor ? sql`lower(counsellor) = lower(${counsellor})` : sql`TRUE`}
     AND ${stage ? sql`stage = ${stage}` : sql`TRUE`}
     AND ${country ? sql`country = ${country}` : sql`TRUE`}
+    AND ${
+      due === "today"
+        ? sql`next_follow_up <> '' AND next_follow_up <= ${today}`
+        : sql`TRUE`
+    }
     AND ${
       needle
         ? sql`(name ILIKE ${"%" + needle + "%"} OR id ILIKE ${"%" + needle + "%"}

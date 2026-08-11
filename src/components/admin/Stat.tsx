@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import Icon from "./Icon";
 
 /**
  * A figure that counts up on first paint. The motion is short and eased out,
@@ -65,6 +67,7 @@ export default function Stat({
   format,
   size = "md",
   title,
+  href,
 }: {
   label: string;
   value: number;
@@ -74,11 +77,23 @@ export default function Stat({
   size?: "md" | "lg";
   /** Exact value, shown on hover when the headline is abbreviated. */
   title?: string;
+  /** Makes the tile a link through to the list it counts. */
+  href?: string;
 }) {
   const n = useCountUp(value);
-  return (
-    <div className="panel px-4 py-3.5">
-      <div className="eyebrow">{label}</div>
+
+  const body = (
+    <>
+      <div className="flex items-center gap-1.5">
+        <span className="eyebrow">{label}</span>
+        {href && (
+          <Icon
+            name="chevron"
+            className="h-3 w-3 -rotate-90 text-[color:var(--text-faint)] opacity-0 transition-opacity group-hover:opacity-100"
+            strokeWidth={2.6}
+          />
+        )}
+      </div>
       <div
         title={title}
         className={`mt-1.5 font-display tabular-nums ${
@@ -87,7 +102,22 @@ export default function Stat({
       >
         {format ? format(n) : n.toLocaleString("en-IN")}
       </div>
-      {sub && <div className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">{sub}</div>}
-    </div>
+      {sub && (
+        <div className="mt-0.5 text-[12.5px] text-[color:var(--text-muted)]">{sub}</div>
+      )}
+    </>
   );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        prefetch={false}
+        className="group panel px-4 py-3.5 transition hover:border-line-strong hover:shadow-[0_1px_2px_rgba(16,24,40,.04),0_8px_20px_-8px_rgba(16,24,40,.12)]"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className="panel px-4 py-3.5">{body}</div>;
 }

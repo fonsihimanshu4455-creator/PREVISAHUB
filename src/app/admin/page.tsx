@@ -116,10 +116,10 @@ export default function AdminDashboard() {
 
       {/* Figures */}
       <div className="grid grid-cols-2 gap-3 stagger xl:grid-cols-4">
-        <Stat label="Students" value={total} sub={`${inProgress} in progress`} />
-        <Stat label="Follow-ups due" value={dueCount} sub="today" tone={dueCount ? "warn" : "neutral"} />
-        <Stat label="Pending fees" value={pending} sub="outstanding" tone={pending ? "crit" : "neutral"} format={formatINRShort} title={formatINR(pending)} />
-        <Stat label="Collected" value={collected} sub={`${approved} visas approved`} tone="good" format={formatINRShort} title={formatINR(collected)} />
+        <Stat label="Students" value={total} sub={`${inProgress} in progress`} href="/admin/crm?tab=students" />
+        <Stat label="Follow-ups due" value={dueCount} sub="today" tone={dueCount ? "warn" : "neutral"} href="/admin/crm?tab=students&due=today" />
+        <Stat label="Pending fees" value={pending} sub="outstanding" tone={pending ? "crit" : "neutral"} format={formatINRShort} title={formatINR(pending)} href="/admin/sales" />
+        <Stat label="Collected" value={collected} sub={`${approved} visas approved`} tone="good" format={formatINRShort} title={formatINR(collected)} href="/admin/sales" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-5">
@@ -137,8 +137,13 @@ export default function AdminDashboard() {
           </header>
           <div className="space-y-2.5 px-5 py-4">
             {byStage.map(({ stage, count }) => (
-              <div key={stage} className="flex items-center gap-3">
-                <span className="w-[112px] shrink-0 text-[12.5px] text-[color:var(--text-muted)]">
+              <Link
+                key={stage}
+                href={`/admin/crm?tab=students&stage=${encodeURIComponent(stage)}`}
+                prefetch={false}
+                className="group flex items-center gap-3 rounded-md py-0.5 transition hover:bg-surface-sunk"
+              >
+                <span className="w-[112px] shrink-0 text-[12.5px] text-[color:var(--text-muted)] transition-colors group-hover:text-[color:var(--text)]">
                   {stage}
                 </span>
                 <div className="h-[18px] flex-1 overflow-hidden rounded-[4px] bg-surface-sunk">
@@ -153,7 +158,7 @@ export default function AdminDashboard() {
                 <span className="w-7 shrink-0 text-right font-display text-[13px] font-bold tabular-nums">
                   {count}
                 </span>
-              </div>
+              </Link>
             ))}
             {loaded && total === 0 && (
               <p className="py-6 text-center text-[13.5px] text-[color:var(--text-faint)]">

@@ -106,7 +106,12 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
   const [counsellors, setCounsellors] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState({ q: "", stage: "All", country: "All" });
+  const [query, setQuery] = useState(() => ({
+    q: "",
+    stage: params.get("stage") ?? "All",
+    country: "All",
+    due: params.get("due") ?? "",
+  }));
   const [searching, setSearching] = useState(false);
   const [telecallers, setTelecallers] = useState<string[]>([]);
   const [role, setRole] = useState<"admin" | "staff">("admin");
@@ -115,8 +120,11 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     let alive = true;
     (async () => {
       try {
+        const initial = new URLSearchParams();
+        if (params.get("stage")) initial.set("stage", params.get("stage")!);
+        if (params.get("due")) initial.set("due", params.get("due")!);
         const [rs, rt, rc] = await Promise.all([
-          fetch("/api/students").then((r) => r.json()),
+          fetch(`/api/students?${initial}`).then((r) => r.json()),
           fetch("/api/tasks").then((r) => r.json()),
           fetch("/api/counsellors").then((r) => r.json()),
         ]);
@@ -213,6 +221,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       if (query.q) p.set("q", query.q);
       if (query.stage !== "All") p.set("stage", query.stage);
       if (query.country !== "All") p.set("country", query.country);
+      if (query.due) p.set("due", query.due);
       try {
         const r = await fetch(`/api/students?${p}`).then((x) => x.json());
         if (Array.isArray(r.students)) setStudents(r.students);
@@ -639,8 +648,8 @@ function Students({
   counsellors: string[];
   telecallers: string[];
   canReassign: boolean;
-  query: { q: string; stage: string; country: string };
-  onQuery: (q: { q: string; stage: string; country: string }) => void;
+  query: { q: string; stage: string; country: string; due: string };
+  onQuery: (q: { q: string; stage: string; country: string; due: string }) => void;
   total: number;
   searching: boolean;
   onAdd: (input: NewStudentInput) => void | Promise<void>;
@@ -709,6 +718,28 @@ function Students({
           + Add Student
         </button>
       </div>
+
+      {(query.due || query.stage !== "All") && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[12.5px] text-[color:var(--text-muted)]">Filtered by</span>
+          {query.stage !== "All" && (
+            <button
+              onClick={() => onQuery({ ...query, stage: "All" })}
+              className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunk px-3 py-1 text-[12px] font-semibold text-[color:var(--text-muted)] ring-1 ring-[color:var(--line)] transition hover:text-[color:var(--text)]"
+            >
+              {query.stage} <span aria-hidden>✕</span>
+            </button>
+          )}
+          {query.due === "today" && (
+            <button
+              onClick={() => onQuery({ ...query, due: "" })}
+              className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunk px-3 py-1 text-[12px] font-semibold text-[color:var(--text-muted)] ring-1 ring-[color:var(--line)] transition hover:text-[color:var(--text)]"
+            >
+              Follow-up due today <span aria-hidden>✕</span>
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="overflow-hidden panel">
         <div className="overflow-x-auto">
@@ -780,7 +811,7 @@ function Students({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
-                    {total === 0 && !query.q && query.stage === "All" && query.country === "All"
+                    {total === 0 && !query.q && query.stage === "All" && query.country === "All" && !query.due
                       ? "No students yet — add your first one above."
                       : "No students match your search."}
                   </td>

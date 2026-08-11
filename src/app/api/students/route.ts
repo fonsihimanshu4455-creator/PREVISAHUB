@@ -20,6 +20,7 @@ export async function GET(req: Request) {
       q: p.get("q") ?? "",
       stage: p.get("stage") ?? "",
       country: p.get("country") ?? "",
+      due: p.get("due") ?? "",
       limit: Math.min(500, Number(p.get("limit")) || 200),
     });
     return NextResponse.json({
