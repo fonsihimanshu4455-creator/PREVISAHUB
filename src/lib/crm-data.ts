@@ -23,6 +23,18 @@ export const VISA_STAGES: VisaStage[] = [
   "Rejected",
 ];
 
+/**
+ * The stages that mean "still working on it" — past the first enquiry, not yet
+ * decided. The dashboard's "In Progress" figure counts these, and clicking it
+ * filters the list by the same set, so both read from here.
+ */
+export const ACTIVE_STAGES: VisaStage[] = [
+  "Documentation",
+  "Test Prep",
+  "Application Filed",
+  "Biometrics",
+];
+
 export type TestType = "IELTS" | "PTE" | "Not Taken";
 
 export type Country =

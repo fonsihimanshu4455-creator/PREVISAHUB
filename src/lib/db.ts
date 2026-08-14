@@ -13,6 +13,7 @@
 
 import postgres from "postgres";
 import {
+  ACTIVE_STAGES,
   SEED_STUDENTS,
   SEED_TASKS,
   Student,
@@ -277,12 +278,20 @@ function toTask(r: TaskRow): Task {
 export type StudentQuery = {
   counsellor?: string;
   q?: string;
+  /**
+   * A stage name, or the pseudo-stage "Active" — everyone still in flight,
+   * i.e. past the enquiry but not yet approved or rejected. The dashboard's
+   * "In Progress" tile counts that same set, so it has to be filterable.
+   */
   stage?: string;
   country?: string;
   /** "today" narrows to students whose follow-up is due. */
   due?: string;
+  /** "taken" | "achieved" | "preparing" — the test-readiness figures. */
+  test?: string;
   limit?: number;
 };
+
 
 /**
  * Search and filter run in SQL rather than shipping every row for the browser
@@ -293,7 +302,9 @@ export async function listStudents(
   arg?: string | StudentQuery
 ): Promise<{ students: Student[]; total: number }> {
   const opts: StudentQuery = typeof arg === "string" ? { counsellor: arg } : arg ?? {};
-  const { counsellor, q = "", stage = "", country = "", due = "", limit = 200 } = opts;
+  const {
+    counsellor, q = "", stage = "", country = "", due = "", test = "", limit = 200,
+  } = opts;
   const today = new Date().toISOString().slice(0, 10);
 
   if (!sql) {
@@ -308,9 +319,15 @@ export async function listStudents(
         [s.name, s.id, s.city, s.phone].some((v) => v.toLowerCase().includes(needle))
       );
     }
-    if (stage) list = list.filter((s) => s.stage === stage);
+    if (stage === "Active") list = list.filter((s) => ACTIVE_STAGES.includes(s.stage));
+    else if (stage) list = list.filter((s) => s.stage === stage);
     if (country) list = list.filter((s) => s.country === country);
     if (due === "today") list = list.filter((s) => s.nextFollowUp && s.nextFollowUp <= today);
+    if (test) {
+      list = list.filter((s) => s.testType !== "Not Taken" && s.score !== null);
+      if (test === "achieved") list = list.filter((s) => s.score! >= s.targetScore);
+      if (test === "preparing") list = list.filter((s) => s.score! < s.targetScore);
+    }
     return { students: list.slice(0, limit), total: list.length };
   }
 
@@ -318,11 +335,25 @@ export async function listStudents(
   const needle = q.trim();
   const where = sql`
     ${counsellor ? sql`lower(counsellor) = lower(${counsellor})` : sql`TRUE`}
-    AND ${stage ? sql`stage = ${stage}` : sql`TRUE`}
+    AND ${
+      stage === "Active"
+        ? sql`stage = ANY(${ACTIVE_STAGES})`
+        : stage
+        ? sql`stage = ${stage}`
+        : sql`TRUE`
+    }
     AND ${country ? sql`country = ${country}` : sql`TRUE`}
     AND ${
       due === "today"
         ? sql`next_follow_up <> '' AND next_follow_up <= ${today}`
+        : sql`TRUE`
+    }
+    AND ${test ? sql`test_type <> 'Not Taken' AND score IS NOT NULL` : sql`TRUE`}
+    AND ${
+      test === "achieved"
+        ? sql`score >= target_score`
+        : test === "preparing"
+        ? sql`score < target_score`
         : sql`TRUE`
     }
     AND ${
@@ -497,41 +528,59 @@ export async function overview(counsellor?: string) {
           (s) => s.counsellor.toLowerCase() === counsellor.toLowerCase()
         )
       : SEED_STUDENTS;
+    const taken = mine.filter((s) => s.testType !== "Not Taken" && s.score !== null);
+    const achieved = taken.filter((s) => s.score! >= s.targetScore).length;
     return {
       total: mine.length,
       byStage: Object.fromEntries(
         mine.reduce((m, s) => m.set(s.stage, (m.get(s.stage) ?? 0) + 1), new Map())
       ) as Record<string, number>,
+      byCountry: Object.fromEntries(
+        mine.reduce((m, s) => m.set(s.country, (m.get(s.country) ?? 0) + 1), new Map())
+      ) as Record<string, number>,
+      tests: { taken: taken.length, achieved, preparing: taken.length - achieved },
       dueCount: mine.filter((s) => s.nextFollowUp <= today).length,
       due: mine
         .filter((s) => s.nextFollowUp <= today)
         .slice(0, 8)
-        .map((s) => ({ id: s.id, name: s.name, notes: s.notes, phone: s.phone })),
+        .map((s) => ({
+          id: s.id, name: s.name, notes: s.notes, phone: s.phone, stage: s.stage as string,
+        })),
     };
   }
   await ensureSchema();
   const scoped = counsellor ?? null;
   const where = scoped === null ? sql`TRUE` : sql`lower(counsellor) = lower(${scoped})`;
 
-  const [stageRows, [counts], due] = await Promise.all([
+  const [stageRows, [counts], due, countryRows] = await Promise.all([
     sql<{ stage: string; n: string }[]>`
       SELECT stage, COUNT(*) AS n FROM students WHERE ${where} GROUP BY stage
     `,
-    sql<{ total: string; due: string }[]>`
+    sql<{ total: string; due: string; taken: string; achieved: string }[]>`
       SELECT COUNT(*) AS total,
-             COUNT(*) FILTER (WHERE next_follow_up <> '' AND next_follow_up <= ${today}) AS due
+             COUNT(*) FILTER (WHERE next_follow_up <> '' AND next_follow_up <= ${today}) AS due,
+             COUNT(*) FILTER (WHERE test_type <> 'Not Taken' AND score IS NOT NULL) AS taken,
+             COUNT(*) FILTER (WHERE test_type <> 'Not Taken' AND score IS NOT NULL
+                              AND score >= target_score) AS achieved
       FROM students WHERE ${where}
     `,
-    sql<{ id: string; name: string; notes: string | null; phone: string }[]>`
-      SELECT id, name, notes, phone FROM students
+    sql<{ id: string; name: string; notes: string | null; phone: string; stage: string }[]>`
+      SELECT id, name, notes, phone, stage FROM students
       WHERE ${where} AND next_follow_up <> '' AND next_follow_up <= ${today}
       ORDER BY next_follow_up ASC LIMIT 8
     `,
+    sql<{ country: string; n: string }[]>`
+      SELECT country, COUNT(*) AS n FROM students WHERE ${where} GROUP BY country
+    `,
   ]);
 
+  const taken = Number(counts?.taken ?? 0);
+  const achieved = Number(counts?.achieved ?? 0);
   return {
     total: Number(counts?.total ?? 0),
     byStage: Object.fromEntries(stageRows.map((r) => [r.stage, Number(r.n)])),
+    byCountry: Object.fromEntries(countryRows.map((r) => [r.country, Number(r.n)])),
+    tests: { taken, achieved, preparing: taken - achieved },
     dueCount: Number(counts?.due ?? 0),
     due: due.map((d) => ({ ...d, notes: d.notes ?? "" })),
   };

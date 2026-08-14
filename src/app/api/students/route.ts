@@ -21,6 +21,7 @@ export async function GET(req: Request) {
       stage: p.get("stage") ?? "",
       country: p.get("country") ?? "",
       due: p.get("due") ?? "",
+      test: p.get("test") ?? "",
       limit: Math.min(500, Number(p.get("limit")) || 200),
     });
     return NextResponse.json({

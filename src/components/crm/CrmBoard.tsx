@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import CallingPanel from "@/components/crm/CallingPanel";
 import {
+  ACTIVE_STAGES,
   COUNTRIES,
   Country,
   formatScore,
@@ -23,6 +24,17 @@ import {
 type View =
   | "dashboard" | "students" | "pipeline" | "tasks" | "payments"
   | "tests" | "attendance" | "documents" | "calling";
+
+/** The student list's filter state. Every figure on the dashboard is a way in. */
+type Query = {
+  q: string;
+  /** A stage name, "All", or "Active" — everyone still in flight. */
+  stage: string;
+  country: string;
+  due: string;
+  /** "taken" | "achieved" | "preparing" */
+  test: string;
+};
 
 export type DocMeta = {
   id: string; studentId: string; studentName: string; name: string;
@@ -106,11 +118,12 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
   const [counsellors, setCounsellors] = useState<string[]>([]);
   const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState(() => ({
+  const [query, setQuery] = useState<Query>(() => ({
     q: "",
     stage: params.get("stage") ?? "All",
-    country: "All",
+    country: params.get("country") ?? "All",
     due: params.get("due") ?? "",
+    test: params.get("test") ?? "",
   }));
   const [searching, setSearching] = useState(false);
   const [telecallers, setTelecallers] = useState<string[]>([]);
@@ -121,8 +134,9 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     (async () => {
       try {
         const initial = new URLSearchParams();
-        if (params.get("stage")) initial.set("stage", params.get("stage")!);
-        if (params.get("due")) initial.set("due", params.get("due")!);
+        for (const k of ["stage", "country", "due", "test"]) {
+          if (params.get(k)) initial.set(k, params.get(k)!);
+        }
         const [rs, rt, rc] = await Promise.all([
           fetch(`/api/students?${initial}`).then((r) => r.json()),
           fetch("/api/tasks").then((r) => r.json()),
@@ -222,6 +236,7 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       if (query.stage !== "All") p.set("stage", query.stage);
       if (query.country !== "All") p.set("country", query.country);
       if (query.due) p.set("due", query.due);
+      if (query.test) p.set("test", query.test);
       try {
         const r = await fetch(`/api/students?${p}`).then((x) => x.json());
         if (Array.isArray(r.students)) setStudents(r.students);
@@ -246,6 +261,16 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   }, [view, moneyLoaded]);
 
   const pendingTasks = tasks.filter((t) => !t.done && t.due <= TODAY).length;
+
+  /**
+   * Every number on the dashboard is a doorway: clicking one opens the student
+   * list already filtered to the rows behind it. Filters are replaced rather
+   * than merged, so a second click never silently intersects with the first.
+   */
+  function drill(patch: Partial<Query>) {
+    setQuery({ q: "", stage: "All", country: "All", due: "", test: "", ...patch });
+    setView("students");
+  }
 
   const tabs: { key: View; label: string; badge?: number }[] = [
     { key: "dashboard", label: "Dashboard" },
@@ -304,7 +329,9 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
         ))}
       </div>
 
-      {view === "dashboard" && <Dashboard students={students} onGoto={setView} />}
+      {view === "dashboard" && (
+        <Dashboard students={students} onGoto={setView} onDrill={drill} />
+      )}
       {view === "students" && (
         <Students
           students={students}
@@ -438,59 +465,123 @@ function SetupPanel({ error }: { error: string | null }) {
 // =========================================================================
 // DASHBOARD
 // =========================================================================
+type Overview = {
+  total: number;
+  byStage: Record<string, number>;
+  byCountry: Record<string, number>;
+  tests: { taken: number; achieved: number; preparing: number };
+  dueCount: number;
+  due: { id: string; name: string; notes: string; phone: string; stage: VisaStage }[];
+};
+
 function Dashboard({
   students,
   onGoto,
+  onDrill,
 }: {
   students: Student[];
   onGoto: (v: View) => void;
+  onDrill: (patch: Partial<Query>) => void;
 }) {
-  const total = students.length;
-  const approved = students.filter((s) => s.stage === "Approved").length;
-  const inProgress = students.filter(
-    (s) => !["Approved", "Rejected", "Enquiry"].includes(s.stage)
-  ).length;
-  const newLeads = students.filter((s) => s.stage === "Enquiry").length;
+  // The student list on screen is one filtered page of at most 200 rows, so
+  // counting it would understate a real caseload. The totals are counted in
+  // SQL instead; the loaded rows are only a fallback if that request fails.
+  const [ov, setOv] = useState<Overview | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/overview")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive && typeof d?.total === "number") setOv(d);
+      })
+      .catch(() => {
+        /* fall back to counting what is loaded */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
-  const kpis = [
-    { label: "Total Students", value: total, sub: "in pipeline", tone: "text-[color:var(--text)]" },
-    { label: "Visas Approved", value: approved, sub: "success stories", tone: "text-[color:var(--good)]" },
-    { label: "In Progress", value: inProgress, sub: "active applications", tone: "text-[color:var(--info)]" },
-    { label: "New Leads", value: newLeads, sub: "awaiting counselling", tone: "text-[color:var(--text-muted)]" },
+  const countStage = (st: string) =>
+    ov ? ov.byStage[st] ?? 0 : students.filter((s) => s.stage === st).length;
+
+  const total = ov ? ov.total : students.length;
+  const approved = countStage("Approved");
+  const inProgress = ov
+    ? ACTIVE_STAGES.reduce((n, st) => n + (ov.byStage[st] ?? 0), 0)
+    : students.filter((s) => !["Approved", "Rejected", "Enquiry"].includes(s.stage)).length;
+  const newLeads = countStage("Enquiry");
+
+  const localTakers = students.filter((s) => s.testType !== "Not Taken" && s.score !== null);
+  const tests = ov
+    ? ov.tests
+    : {
+        taken: localTakers.length,
+        achieved: localTakers.filter(isIeltsPass).length,
+        preparing: localTakers.length - localTakers.filter(isIeltsPass).length,
+      };
+  const passRate = tests.taken ? Math.round((tests.achieved / tests.taken) * 100) : 0;
+
+  const kpis: { label: string; value: number; sub: string; tone: string; go: Partial<Query> }[] = [
+    { label: "Total Students", value: total, sub: "in pipeline", tone: "text-[color:var(--text)]", go: {} },
+    { label: "Visas Approved", value: approved, sub: "success stories", tone: "text-[color:var(--good)]", go: { stage: "Approved" } },
+    { label: "In Progress", value: inProgress, sub: "active applications", tone: "text-[color:var(--info)]", go: { stage: "Active" } },
+    { label: "New Leads", value: newLeads, sub: "awaiting counselling", tone: "text-[color:var(--text-muted)]", go: { stage: "Enquiry" } },
   ];
 
-  const stageCounts = VISA_STAGES.map((st) => ({
-    stage: st,
-    count: students.filter((s) => s.stage === st).length,
-  }));
+  const stageCounts = VISA_STAGES.map((st) => ({ stage: st, count: countStage(st) }));
   const maxStage = Math.max(1, ...stageCounts.map((s) => s.count));
 
   const countryCounts = COUNTRIES.map((c) => ({
     country: c,
-    count: students.filter((s) => s.country === c).length,
+    count: ov ? ov.byCountry[c] ?? 0 : students.filter((s) => s.country === c).length,
   })).filter((c) => c.count > 0);
+  // Scaled against the biggest destination, not the whole caseload — six
+  // countries splitting 600 students otherwise leaves every bar a stub.
+  const maxCountry = Math.max(1, ...countryCounts.map((c) => c.count));
 
-  const testTakers = students.filter((s) => s.testType !== "Not Taken" && s.score !== null);
-  const passing = testTakers.filter(isIeltsPass).length;
-  const passRate = testTakers.length ? Math.round((passing / testTakers.length) * 100) : 0;
+  const readiness: { label: string; value: number; tone: string; go: Partial<Query> }[] = [
+    { label: "Test takers", value: tests.taken, tone: "text-[color:var(--text)]", go: { test: "taken" } },
+    { label: "Target achieved", value: tests.achieved, tone: "text-green-600", go: { test: "achieved" } },
+    { label: "Still preparing", value: tests.preparing, tone: "text-orange-500", go: { test: "preparing" } },
+  ];
 
-  const todaysFollowUps = students
-    .filter((s) => s.nextFollowUp <= TODAY)
-    .sort((a, b) => a.nextFollowUp.localeCompare(b.nextFollowUp));
+  // Same reasoning as the counts: the server knows the whole caseload, the
+  // loaded page only knows whatever filter the list was last left on.
+  const todaysFollowUps = ov
+    ? ov.due
+    : students
+        .filter((s) => s.nextFollowUp <= TODAY)
+        .sort((a, b) => a.nextFollowUp.localeCompare(b.nextFollowUp))
+        .map((s) => ({
+          id: s.id, name: s.name, notes: s.notes, phone: s.phone, stage: s.stage,
+        }));
+  const dueCount = ov ? ov.dueCount : todaysFollowUps.length;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {kpis.map((k) => (
-          <div key={k.label} className="panel p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">
-              {k.label}
+          <button
+            key={k.label}
+            type="button"
+            onClick={() => onDrill(k.go)}
+            title={`Open the list — ${k.label.toLowerCase()}`}
+            className="group panel p-4 text-left transition hover:border-accent/50 hover:shadow-md"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--text-faint)]">
+                {k.label}
+              </span>
+              <span className="text-[color:var(--text-faint)] opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100">
+                →
+              </span>
             </div>
-            <div className={`mt-1 font-display text-3xl font-extrabold ${k.tone}`}>
+            <div className={`mt-1 font-display text-3xl font-extrabold tabular-nums ${k.tone}`}>
               {k.value}
             </div>
             <div className="text-xs text-[color:var(--text-muted)]">{k.sub}</div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -507,7 +598,13 @@ function Dashboard({
           </div>
           <div className="space-y-3">
             {stageCounts.map((s) => (
-              <div key={s.stage} className="flex items-center gap-3">
+              <button
+                key={s.stage}
+                type="button"
+                onClick={() => onDrill({ stage: s.stage })}
+                title={`Show the ${s.count} student${s.count === 1 ? "" : "s"} at ${s.stage}`}
+                className="flex w-full items-center gap-3 rounded-lg py-0.5 text-left transition hover:bg-surface-sunk"
+              >
                 <div className="w-32 shrink-0 text-xs font-medium text-slate-600">{s.stage}</div>
                 <div className="h-[18px] flex-1 overflow-hidden rounded-[4px] bg-surface-sunk">
                   <div
@@ -521,7 +618,7 @@ function Dashboard({
                 <span className="w-8 shrink-0 text-right font-display text-[13px] font-bold tabular-nums">
                   {s.count}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -531,21 +628,19 @@ function Dashboard({
           <div className="flex justify-center">
             <ProgressRing percent={passRate} />
           </div>
-          <div className="mt-4 space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-[color:var(--text-muted)]">Test takers</span>
-              <span className="font-semibold text-[color:var(--text)]">{testTakers.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[color:var(--text-muted)]">Target achieved</span>
-              <span className="font-semibold text-green-600">{passing}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-[color:var(--text-muted)]">Still preparing</span>
-              <span className="font-semibold text-orange-500">
-                {testTakers.length - passing}
-              </span>
-            </div>
+          <div className="mt-4 space-y-0.5 text-sm">
+            {readiness.map((r) => (
+              <button
+                key={r.label}
+                type="button"
+                onClick={() => onDrill(r.go)}
+                title={`Show these ${r.value} student${r.value === 1 ? "" : "s"}`}
+                className="flex w-full items-center justify-between rounded-lg px-2 py-1 transition hover:bg-surface-sunk"
+              >
+                <span className="text-[color:var(--text-muted)]">{r.label}</span>
+                <span className={`font-semibold tabular-nums ${r.tone}`}>{r.value}</span>
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -555,12 +650,17 @@ function Dashboard({
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-[15px] font-bold">
               Today&apos;s Follow-ups
-              <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-600">
-                {todaysFollowUps.length}
-              </span>
+              <button
+                type="button"
+                onClick={() => onDrill({ due: "today" })}
+                title="Show every student whose follow-up is due"
+                className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-600 transition hover:bg-orange-200"
+              >
+                {dueCount}
+              </button>
             </h3>
             <button
-              onClick={() => onGoto("students")}
+              onClick={() => onDrill({})}
               className="text-[12.5px] font-semibold text-accent hover:underline"
             >
               All students →
@@ -605,19 +705,25 @@ function Dashboard({
             {countryCounts
               .sort((a, b) => b.count - a.count)
               .map((c) => (
-                <div key={c.country} className="flex items-center gap-3">
+                <button
+                  key={c.country}
+                  type="button"
+                  onClick={() => onDrill({ country: c.country })}
+                  title={`Show the ${c.count} student${c.count === 1 ? "" : "s"} going to ${c.country}`}
+                  className="flex w-full items-center gap-3 rounded-lg px-1 py-0.5 text-left transition hover:bg-surface-sunk"
+                >
                   <span className="text-lg">{countryFlag(c.country)}</span>
                   <span className="flex-1 text-sm font-medium text-slate-600">{c.country}</span>
                   <div className="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full bg-orange-500"
-                      style={{ width: `${(c.count / Math.max(1, students.length)) * 100}%` }}
+                      style={{ width: `${(c.count / maxCountry) * 100}%` }}
                     />
                   </div>
-                  <span className="w-5 text-right text-sm font-bold text-[color:var(--text)]">
+                  <span className="w-5 text-right text-sm font-bold tabular-nums text-[color:var(--text)]">
                     {c.count}
                   </span>
-                </div>
+                </button>
               ))}
             {countryCounts.length === 0 && (
               <p className="py-4 text-center text-sm text-[color:var(--text-faint)]">No students yet.</p>
@@ -648,8 +754,8 @@ function Students({
   counsellors: string[];
   telecallers: string[];
   canReassign: boolean;
-  query: { q: string; stage: string; country: string; due: string };
-  onQuery: (q: { q: string; stage: string; country: string; due: string }) => void;
+  query: Query;
+  onQuery: (q: Query) => void;
   total: number;
   searching: boolean;
   onAdd: (input: NewStudentInput) => void | Promise<void>;
@@ -658,6 +764,31 @@ function Students({
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Student | null>(null);
   const filtered = students;
+
+  // One removable chip per active filter, so it is always obvious why the
+  // list is short after arriving here from a figure on the dashboard.
+  const TEST_LABELS: Record<string, string> = {
+    taken: "Test taken",
+    achieved: "Target achieved",
+    preparing: "Still preparing",
+  };
+  const chips: { label: string; clear: Partial<Query> }[] = [
+    ...(query.stage !== "All"
+      ? [{
+          label: query.stage === "Active" ? "In progress" : query.stage,
+          clear: { stage: "All" },
+        }]
+      : []),
+    ...(query.country !== "All"
+      ? [{ label: query.country, clear: { country: "All" } }]
+      : []),
+    ...(query.due === "today"
+      ? [{ label: "Follow-up due today", clear: { due: "" } }]
+      : []),
+    ...(query.test
+      ? [{ label: TEST_LABELS[query.test] ?? query.test, clear: { test: "" } }]
+      : []),
+  ];
 
   function saveStudent(updated: Student) {
     onUpdate(updated.id, {
@@ -693,6 +824,7 @@ function Students({
           className="rounded-xl border border-line-strong bg-surface-sunk px-3 py-2.5 text-sm outline-none focus:border-accent"
         >
           <option value="All">All stages</option>
+          <option value="Active">In progress</option>
           {VISA_STAGES.map((s) => (
             <option key={s} value={s}>
               {s}
@@ -719,25 +851,18 @@ function Students({
         </button>
       </div>
 
-      {(query.due || query.stage !== "All") && (
+      {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[12.5px] text-[color:var(--text-muted)]">Filtered by</span>
-          {query.stage !== "All" && (
+          {chips.map((c) => (
             <button
-              onClick={() => onQuery({ ...query, stage: "All" })}
+              key={c.label}
+              onClick={() => onQuery({ ...query, ...c.clear })}
               className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunk px-3 py-1 text-[12px] font-semibold text-[color:var(--text-muted)] ring-1 ring-[color:var(--line)] transition hover:text-[color:var(--text)]"
             >
-              {query.stage} <span aria-hidden>✕</span>
+              {c.label} <span aria-hidden>✕</span>
             </button>
-          )}
-          {query.due === "today" && (
-            <button
-              onClick={() => onQuery({ ...query, due: "" })}
-              className="inline-flex items-center gap-1.5 rounded-full bg-surface-sunk px-3 py-1 text-[12px] font-semibold text-[color:var(--text-muted)] ring-1 ring-[color:var(--line)] transition hover:text-[color:var(--text)]"
-            >
-              Follow-up due today <span aria-hidden>✕</span>
-            </button>
-          )}
+          ))}
         </div>
       )}
 
@@ -811,7 +936,8 @@ function Students({
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-[color:var(--text-faint)]">
-                    {total === 0 && !query.q && query.stage === "All" && query.country === "All" && !query.due
+                    {total === 0 && !query.q && query.stage === "All" &&
+                    query.country === "All" && !query.due && !query.test
                       ? "No students yet — add your first one above."
                       : "No students match your search."}
                   </td>
