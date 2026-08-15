@@ -8,9 +8,11 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCrm } from "@/components/salescrm/Shell";
 import LeadForm from "@/components/salescrm/LeadForm";
-import { ScorePill, StatusBadge, dueTone } from "@/components/salescrm/ui";
+import EditLeadModal from "@/components/salescrm/EditLeadModal";
+import { ScorePill, StatusBadge, dueTone, statusChip } from "@/components/salescrm/ui";
 import {
-  DESTINATIONS, LEAD_SOURCES, LEAD_STATUSES, Lead, PRIORITIES, VISA_TYPES,
+  DESTINATIONS, LEAD_SOURCES, LEAD_STATUSES, LOST_REASONS, Lead, PRIORITIES,
+  REASON_REQUIRED, VISA_TYPES,
 } from "@/lib/leads/types";
 
 const PAGE = 50;
@@ -35,6 +37,9 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
   const [total, setTotal] = useState(initial.total);
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(params.get("new") === "1");
+  const [editing, setEditing] = useState<Lead | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [rowError, setRowError] = useState("");
   const today = new Date().toISOString().slice(0, 10);
 
   const load = useCallback(async () => {
@@ -62,6 +67,36 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
   }, [load]);
+
+  /** Replace one lead in the list without refetching the page. */
+  const replace = (updated: Lead) =>
+    setLeads((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+
+  /**
+   * Change a status straight from the row. Closing a lead needs a reason, so
+   * that is asked for here rather than bounced back from the server.
+   */
+  async function changeStatus(lead: Lead, status: string) {
+    const body: Record<string, unknown> = { status };
+    if (REASON_REQUIRED.includes(status as never)) {
+      const reason = window.prompt(
+        `Why is ${lead.name} ${status}?\n\n${LOST_REASONS.join(" · ")}`,
+        lead.lostReason || "No Response"
+      );
+      if (!reason) return;
+      body.lostReason = reason;
+    }
+    setSaving(lead.id);
+    setRowError("");
+    const r = await fetch(`/api/crm/leads/${lead.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((x) => x.json());
+    setSaving(null);
+    if (r.error) setRowError(r.error);
+    else replace(r.lead);
+  }
 
   const setFilter = (k: string, v: string) => {
     setPage(0);
@@ -148,12 +183,16 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
             <thead>
               <tr>
                 <th className="px-4 py-2.5 text-left">Client</th>
+                <th className="px-3 py-2.5 text-left">Mobile</th>
                 <th className="px-3 py-2.5 text-left">Destination / Visa</th>
                 <th className="px-3 py-2.5 text-left">Source</th>
-                <th className="px-3 py-2.5 text-left">Score</th>
+                <th className="px-3 py-2.5 text-left" title="Built from eligibility, budget and how soon they want to apply. A lead imported from an old sheet has none of that yet, so it is unscored until someone fills it in.">
+                  Score
+                </th>
                 <th className="px-3 py-2.5 text-left">Status</th>
                 <th className="px-3 py-2.5 text-left">Next follow-up</th>
                 <th className="px-3 py-2.5 text-left">Owner</th>
+                <th className="px-3 py-2.5"></th>
               </tr>
             </thead>
             <tbody>
@@ -163,19 +202,64 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
                     <Link href={`/crm/leads/${l.id}`} className="font-semibold hover:text-accent">
                       {l.name}
                     </Link>
-                    <div className="text-[11.5px] text-[color:var(--text-faint)]">
-                      {l.id} · {l.phone}
-                    </div>
+                    <div className="text-[11.5px] text-[color:var(--text-faint)]">{l.id}</div>
+                  </td>
+                  {/* Its own column: the number is what a caller reaches for. */}
+                  <td className="whitespace-nowrap px-3 py-2.5">
+                    <a
+                      href={`tel:${l.phone.replace(/[^0-9+]/g, "")}`}
+                      className="font-medium tabular-nums hover:text-accent"
+                    >
+                      {l.phone}
+                    </a>
+                    <a
+                      href={`https://wa.me/${(l.whatsapp || l.phone).replace(/[^0-9]/g, "")}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="ml-2 text-[11.5px] font-semibold text-[#0f7a52] hover:underline"
+                    >
+                      WhatsApp
+                    </a>
                   </td>
                   <td className="px-3 py-2.5">
-                    {l.destination}
+                    {l.destination || "—"}
                     <div className="text-[11.5px] text-[color:var(--text-faint)]">{l.visaType}</div>
                   </td>
                   <td className="px-3 py-2.5 text-[color:var(--text-muted)]">{l.source}</td>
                   <td className="px-3 py-2.5">
-                    <ScorePill score={l.score} priority={l.priority} size="sm" />
+                    {/* "Cold 0" on every row of an imported sheet says nothing.
+                        Until there is something to score, say so instead. */}
+                    {l.score > 0 ? (
+                      <ScorePill score={l.score} priority={l.priority} size="sm" />
+                    ) : (
+                      <span
+                        className="text-[11.5px] text-[color:var(--text-faint)]"
+                        title="Nothing to score yet — add education, budget or an application date and it fills in."
+                      >
+                        Not scored
+                      </span>
+                    )}
                   </td>
-                  <td className="px-3 py-2.5"><StatusBadge status={l.status} /></td>
+                  <td className="px-3 py-2.5">
+                    {permissions.canEdit ? (
+                      <select
+                        value={l.status}
+                        disabled={saving === l.id}
+                        onChange={(e) => changeStatus(l, e.target.value)}
+                        className={`rounded-full px-2.5 py-1 text-[11.5px] font-semibold ring-1 outline-none transition disabled:opacity-50 ${statusChip(
+                          l.status
+                        )}`}
+                      >
+                        {LEAD_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <StatusBadge status={l.status} />
+                    )}
+                  </td>
                   <td className={`px-3 py-2.5 tabular-nums ${dueTone(l.nextFollowUpDate, today)}`}>
                     {l.nextFollowUpDate || "—"}
                     {l.nextFollowUpTime ? ` ${l.nextFollowUpTime}` : ""}
@@ -183,11 +267,21 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
                   <td className="px-3 py-2.5 text-[12.5px] text-[color:var(--text-muted)]">
                     {l.owner || "—"}
                   </td>
+                  <td className="px-3 py-2.5 text-right">
+                    {permissions.canEdit && (
+                      <button
+                        onClick={() => setEditing(l)}
+                        className="rounded-lg border border-line-strong px-3 py-1.5 text-[12px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {leads.length === 0 && !busy && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-[color:var(--text-faint)]">
+                  <td colSpan={9} className="px-4 py-12 text-center text-[color:var(--text-faint)]">
                     {total === 0 && !q && chips.length === 0
                       ? "No leads yet — add the first one."
                       : "No leads match those filters."}
@@ -221,6 +315,23 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
           </span>
         </div>
       </div>
+
+      {rowError && (
+        <p className="rounded-lg bg-[color:var(--crit-soft)] px-3 py-2 text-[13px] text-[color:var(--crit)]">
+          {rowError}
+        </p>
+      )}
+
+      {editing && (
+        <EditLeadModal
+          lead={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(updated) => {
+            replace(updated);
+            setEditing(null);
+          }}
+        />
+      )}
 
       {adding && (
         <LeadForm
