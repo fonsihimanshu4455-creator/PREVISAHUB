@@ -185,7 +185,7 @@ export default function CallingClient({
   const transfer = useCallback(
     async (lead: Lead) => {
       const note = window.prompt(
-        `Send ${lead.name} back to the admin.\n\nWhy? (the admin will see this)`,
+        `Give ${lead.name} to the admin.\n\nWhy? (the admin will see this)`,
         ""
       );
       if (note === null) return;
@@ -326,7 +326,7 @@ export default function CallingClient({
           title="Hand this lead back to the admin"
           className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
         >
-          Transfer to admin
+          Give to admin
         </button>
       )}
 
@@ -387,11 +387,33 @@ export default function CallingClient({
       <div>
         <p className="eyebrow">Calling</p>
         <h1 className="mt-1 font-display text-display-lg font-bold">My numbers</h1>
-        <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
-          {initial.me} · {counts.tocall} to call today
-          {doneCount > 0 && ` · ${doneCount} done`}
-          {Object.entries(gave).map(([who, n]) => ` · ${n} given to ${who}`)}
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[13.5px] text-[color:var(--text-muted)]">
+          <span className="font-semibold text-[color:var(--text)]">{initial.me}</span>
+          {/* Which side of the handover you are on. The two roles get different
+              buttons, and without this an admin who opens the calling panel
+              reads it as the caller's screen and wonders where the caller's
+              button went. */}
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
+              initial.canAssign
+                ? "bg-[color:var(--warn-soft)] text-[color:var(--warn)]"
+                : "bg-surface-sunk text-[color:var(--text-muted)]"
+            }`}
+          >
+            {initial.canAssign ? "Admin view" : "Telecaller"}
+          </span>
+          <span>
+            · {counts.tocall} to call today
+            {doneCount > 0 && ` · ${doneCount} done`}
+            {Object.entries(gave).map(([who, n]) => ` · ${n} given to ${who}`)}
+          </span>
         </p>
+        {initial.canAssign && (
+          <p className="mt-1 text-[12.5px] text-[color:var(--text-faint)]">
+            You are the admin, so each row offers <strong>Give to caller</strong>. A
+            telecaller signed in here sees <strong>Give to admin</strong> instead.
+          </p>
+        )}
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-line">
