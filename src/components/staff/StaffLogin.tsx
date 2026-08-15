@@ -11,9 +11,10 @@ export type StaffAccount = {
 };
 
 /**
- * Sign-in form shared by the two staff panels. `expect` names the role this
- * page is for — the server rejects an account of the other kind and says
- * where it belongs, so nobody lands in a panel with nothing to show.
+ * Sign-in form shared by the staff panels. `expect` names the role this page
+ * is for — the server rejects an account of the other kind and says where it
+ * belongs, so nobody lands in a panel with nothing to show. Leave it off on a
+ * page every account may use, like the sales CRM.
  */
 export default function StaffLogin({
   expect,
@@ -24,7 +25,7 @@ export default function StaffLogin({
   otherHref,
   onLogin,
 }: {
-  expect: "counsellor" | "telecaller";
+  expect?: "counsellor" | "telecaller";
   title: string;
   subtitle: string;
   icon?: IconName;
