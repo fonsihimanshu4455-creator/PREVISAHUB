@@ -1,7 +1,11 @@
-// The call queue, rendered on the server.
+// The caller's list, rendered on the server.
+//
+// "Everything assigned to me that is still worth ringing" — one list, in the
+// order it should be worked. No tabs: a caller with numbers to call does not
+// need to choose which pile to look at first.
 
 import { crmSession } from "@/lib/leads/auth";
-import { callQueueCounts, listLeads } from "@/lib/leads/repo";
+import { listLeads } from "@/lib/leads/repo";
 import CallingClient from "./CallingClient";
 
 export const dynamic = "force-dynamic";
@@ -9,14 +13,13 @@ export const dynamic = "force-dynamic";
 export default async function CallingPage() {
   const user = await crmSession();
   if (!user) return null;
-  const owner = user.scope || undefined;
 
-  // Opens on Overdue — the queue that matters most and the one the floor is
-  // supposed to clear first.
-  const [{ leads }, counts] = await Promise.all([
-    listLeads({ owner, bucket: "open", due: "overdue", limit: 200 }),
-    callQueueCounts(owner),
-  ]);
+  const { leads, total } = await listLeads({
+    owner: user.scope || undefined,
+    bucket: "callable",
+    order: "calling",
+    limit: 300,
+  });
 
-  return <CallingClient initial={{ tab: "overdue", leads, counts }} />;
+  return <CallingClient initial={{ leads, total }} />;
 }

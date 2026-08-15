@@ -9,10 +9,11 @@
 import { sql } from "../db";
 import { ensureLeadSchema } from "./schema";
 import { logActivity } from "./activity";
-import { completeOpenFollowUp, scheduleFollowUp, today } from "./followups";
+import { addDays, completeOpenFollowUp, scheduleFollowUp, today } from "./followups";
 import { getLead, updateLead } from "./repo";
 import {
-  CALL_OUTCOMES, CallOutcome, DEAD_STATUSES, OUTCOME_STATUS, TERMINAL_OUTCOMES,
+  CALL_OUTCOMES, CallOutcome, DEAD_STATUSES, OUTCOME_GAP, OUTCOME_STATUS,
+  TERMINAL_OUTCOMES,
 } from "./types";
 
 export type CallLog = {
@@ -50,19 +51,26 @@ export async function logCall(
   if (!CALL_OUTCOMES.includes(outcome)) {
     return { error: "Pick a call outcome." };
   }
-  if (!input.notes.trim()) {
-    return { error: "Write what was said — notes are required on every call." };
-  }
-
   const lead = await getLead(input.leadId);
   if (!lead) return { error: "Lead not found." };
+
+  // The five simple outcomes carry their own meaning and their own ring-back
+  // date, so a caller picks one thing and is done. Asking them to also type
+  // notes, a next action and a date is how a calling screen stops being used.
+  const gap = OUTCOME_GAP[outcome];
+  const simple = gap !== undefined;
+  if (simple && gap !== null && !input.nextFollowUpDate) {
+    input.nextFollowUpDate = addDays(today(), gap);
+  }
 
   const implied = OUTCOME_STATUS[outcome] ?? lead.status;
   const closes = DEAD_STATUSES.includes(implied);
 
   // The lead stays in play unless the outcome ends it — and if it stays in
-  // play, it needs a date. This is the rule that keeps the queue full.
-  if (!closes && !TERMINAL_OUTCOMES.includes(outcome)) {
+  // play, it needs a date. This is the rule that keeps the queue full. The
+  // simple outcomes have already supplied one, so this only bites on the
+  // longer form a counsellor fills in.
+  if (!simple && !closes && !TERMINAL_OUTCOMES.includes(outcome)) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.nextFollowUpDate)) {
       return { error: "Set the next follow-up date before saving this call." };
     }
@@ -73,8 +81,10 @@ export async function logCall(
       return { error: "Say what happens next — the next action is required." };
     }
   }
+  // "Not Interested" is the reason, so a caller is not asked for a second one.
   if (closes && !input.lostReason?.trim()) {
-    return { error: `Pick a reason — this outcome closes the lead.` };
+    if (simple) input.lostReason = "Not Interested";
+    else return { error: `Pick a reason — this outcome closes the lead.` };
   }
 
   const id = `CL-${Math.random().toString(36).slice(2, 10)}`;

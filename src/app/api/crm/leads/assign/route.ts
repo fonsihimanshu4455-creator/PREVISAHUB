@@ -45,7 +45,7 @@ export async function POST(req: Request) {
   }
   if (!owner && !status) {
     return NextResponse.json(
-      { error: "Choose who to assign to, or a status to set." },
+      { error: "Choose a caller to send these to." },
       { status: 400 }
     );
   }
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     // Business rule 9: this shows up on each lead's timeline like any other
     // change, so a reassignment is never invisible.
     const summary = [
-      owner ? `Assigned to ${owner}` : "",
+      owner ? `Sent to ${owner}` : "",
       status ? `Status set to ${status}` : "",
     ]
       .filter(Boolean)

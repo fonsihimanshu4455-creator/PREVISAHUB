@@ -1,135 +1,124 @@
 "use client";
 
-// The calling floor. One list, worked top to bottom: overdue first, then due
-// today, then leads nobody has ever rung.
+// ---------------------------------------------------------------------------
+// The calling screen.
+//
+// A caller needs a name, a number, and one decision. Everything else — score,
+// destination, visa type, source, follow-up dates, notes — belongs to the
+// people who work the lead afterwards, and putting it here only slows down the
+// one job this screen has.
+//
+// So: one list, one dropdown of five outcomes, and a way to hand a lead back
+// to the admin. Picking an outcome sets the ring-back date itself and moves
+// the lead on; the caller never types a date.
+// ---------------------------------------------------------------------------
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useCallback, useState } from "react";
 import { useCrm } from "@/components/salescrm/Shell";
-import CallModal from "@/components/salescrm/CallModal";
-import { ScorePill, StatusBadge, dueTone } from "@/components/salescrm/ui";
-import { Lead } from "@/lib/leads/types";
+import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
 
-type Tab = "overdue" | "today" | "uncontacted" | "all" | "cold";
+const DESCRIPTION: Record<string, string> = {
+  "Call Later": "ring back in 3 days",
+  "Call Tomorrow": "ring back tomorrow",
+  "Not Interested": "closes this lead",
+  "Switched Off": "try again tomorrow",
+  "No Incoming": "try again tomorrow",
+};
 
-const TABS: { key: Tab; label: string; due: string; bucket: string; status?: string }[] = [
-  { key: "overdue", label: "Overdue", due: "overdue", bucket: "open" },
-  { key: "today", label: "Due today", due: "today", bucket: "open" },
-  { key: "uncontacted", label: "Never called", due: "uncontacted", bucket: "open" },
-  { key: "all", label: "All open", due: "", bucket: "open" },
-  // Imported sheets land as Cold Lead, which is not an "open" status — so
-  // without this tab a caller handed two hundred old numbers would open the
-  // queue and find it empty.
-  { key: "cold", label: "Old database", due: "", bucket: "", status: "Cold Lead" },
-];
-
-function CallingInner({ initial }: { initial: { tab: Tab; leads: Lead[]; counts: Record<string, number> } }) {
+export default function CallingClient({
+  initial,
+}: {
+  initial: { leads: Lead[]; total: number };
+}) {
   const { user } = useCrm();
-  const [tab, setTab] = useState<Tab>(initial.tab);
   const [leads, setLeads] = useState<Lead[]>(initial.leads);
-  const [counts, setCounts] = useState<Record<string, number>>(initial.counts);
-  const [calling, setCalling] = useState<Lead | null>(null);
-  const [busy, setBusy] = useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [doneCount, setDoneCount] = useState(0);
 
-  // One request for the tab being opened. The counts come with the page and
-  // are refreshed by the same call, so switching tabs is a single round trip
-  // rather than four.
-  const load = useCallback(async () => {
-    setBusy(true);
-    const t = TABS.find((x) => x.key === tab)!;
-    const p = new URLSearchParams({ limit: "200" });
-    if (t.bucket) p.set("bucket", t.bucket);
-    if (t.due) p.set("due", t.due);
-    if (t.status) p.set("status", t.status);
-    const r = await fetch(`/api/crm/leads?${p}`).then((x) => x.json());
-    setLeads(Array.isArray(r.leads) ? r.leads : []);
-    setBusy(false);
-  }, [tab]);
+  /** Log the outcome and take the lead off the list — it has a date now. */
+  const save = useCallback(async (lead: Lead, outcome: string) => {
+    if (!outcome) return;
+    setBusy(lead.id);
+    setError("");
+    const r = await fetch("/api/crm/calls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ leadId: lead.id, outcome, notes: "", nextAction: "" }),
+    }).then((x) => x.json());
+    setBusy(null);
+    if (r.error) return setError(r.error);
+    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+    setDoneCount((n) => n + 1);
+  }, []);
 
-  const first = useRef(true);
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    load();
-  }, [load]);
+  const transfer = useCallback(async (lead: Lead) => {
+    if (!window.confirm(`Send ${lead.name} back to the admin?`)) return;
+    setBusy(lead.id);
+    setError("");
+    const r = await fetch(`/api/crm/leads/${lead.id}/transfer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: "" }),
+    }).then((x) => x.json());
+    setBusy(null);
+    if (r.error) return setError(r.error);
+    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+  }, []);
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="eyebrow">Calling</p>
-        <h1 className="mt-1 font-display text-display-lg font-bold">My call queue</h1>
-        <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
-          {user.name} · work from the top — overdue first.
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="eyebrow">Calling</p>
+          <h1 className="mt-1 font-display text-display-lg font-bold">My numbers</h1>
+          <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
+            {user.name} · {leads.length} to call
+            {doneCount > 0 && ` · ${doneCount} done today`}
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <p className="rounded-xl bg-[color:var(--crit-soft)] px-4 py-3 text-[13.5px] text-[color:var(--crit)]">
+          {error}
         </p>
-      </div>
+      )}
 
-      <div className="flex gap-1 overflow-x-auto border-b border-line">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`relative flex items-center gap-2 whitespace-nowrap px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${
-              tab === t.key
-                ? "text-[color:var(--text)]"
-                : "text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]"
-            }`}
-          >
-            {t.label}
-            {counts[t.key] > 0 && (
-              <span
-                className={`rounded-full px-1.5 text-[10.5px] font-bold tabular-nums text-white ${
-                  t.key === "overdue" ? "bg-[color:var(--crit)]" : "bg-[color:var(--text-faint)]"
-                }`}
-              >
-                {counts[t.key]}
-              </span>
-            )}
-            <span
-              className={`absolute inset-x-2 -bottom-px h-[2px] rounded-t bg-accent transition-opacity ${
-                tab === t.key ? "opacity-100" : "opacity-0"
+      {leads.length === 0 ? (
+        <div className="panel p-12 text-center">
+          <p className="font-display text-[16px] font-bold">
+            {doneCount > 0 ? "All done for now 🎉" : "No numbers yet"}
+          </p>
+          <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
+            {doneCount > 0
+              ? "Every number on your list has been called."
+              : "The admin has not sent you any numbers yet."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          {leads.map((l) => (
+            <div
+              key={l.id}
+              className={`panel flex flex-wrap items-center gap-3 p-4 transition ${
+                busy === l.id ? "opacity-50" : ""
               }`}
-            />
-          </button>
-        ))}
-      </div>
-
-      <div className="space-y-2">
-        {busy && <div className="panel p-5 text-[13.5px] text-[color:var(--text-faint)]">Loading…</div>}
-        {!busy && leads.length === 0 && (
-          <div className="panel p-10 text-center text-[13.5px] text-[color:var(--text-faint)]">
-            Nothing in this queue. 🎉
-          </div>
-        )}
-        {leads.map((l) => (
-          <div key={l.id} className="panel flex flex-wrap items-center gap-3 p-3.5">
-            <div className="min-w-[180px] flex-1">
-              <Link href={`/crm/leads/${l.id}`} className="font-semibold hover:text-accent">
-                {l.name}
-              </Link>
-              <div className="text-[11.5px] text-[color:var(--text-faint)]">
-                {l.phone} · {l.destination} · {l.visaType} · {l.source}
+            >
+              {/* Name and number — the only two things that matter here. */}
+              <div className="min-w-[190px] flex-1">
+                <div className="font-display text-[16px] font-bold">{l.name}</div>
+                <a
+                  href={`tel:${l.phone.replace(/[^0-9+]/g, "")}`}
+                  className="text-[15px] tabular-nums text-[color:var(--text-muted)] hover:text-accent"
+                >
+                  {l.phone}
+                </a>
               </div>
-            </div>
 
-            <ScorePill score={l.score} priority={l.priority} size="sm" />
-            <StatusBadge status={l.status} />
-
-            <div className="min-w-[130px] text-[12px]">
-              <div className={dueTone(l.nextFollowUpDate, today)}>
-                {l.nextFollowUpDate ? `Due ${l.nextFollowUpDate}` : "No date"}
-              </div>
-              <div className="text-[color:var(--text-faint)]">
-                {l.lastOutcome || "Never called"}
-              </div>
-            </div>
-
-            <div className="flex gap-2">
               <a
                 href={`tel:${l.phone.replace(/[^0-9+]/g, "")}`}
-                className="rounded-xl bg-[color:var(--brand)] px-3.5 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110"
+                className="rounded-xl bg-[color:var(--brand)] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110"
               >
                 Call
               </a>
@@ -137,49 +126,40 @@ function CallingInner({ initial }: { initial: { tab: Tab; leads: Lead[]; counts:
                 href={`https://wa.me/${(l.whatsapp || l.phone).replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-xl bg-[#0f7a52] px-3.5 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-110"
+                className="rounded-xl bg-[#0f7a52] px-4 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110"
               >
                 WhatsApp
               </a>
-              <button
-                onClick={() => setCalling(l)}
-                className="rounded-xl bg-accent px-3.5 py-2 text-[12.5px] font-semibold text-white transition hover:brightness-95"
+
+              <select
+                defaultValue=""
+                disabled={busy === l.id}
+                onChange={(e) => {
+                  save(l, e.target.value);
+                  e.target.value = "";
+                }}
+                className="rounded-xl border-2 border-line-strong bg-surface px-3 py-2.5 text-[14px] font-semibold outline-none transition focus:border-accent disabled:opacity-50"
               >
-                Log outcome
+                <option value="">What happened?</option>
+                {SIMPLE_OUTCOMES.map((o) => (
+                  <option key={o} value={o}>
+                    {o} — {DESCRIPTION[o]}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={() => transfer(l)}
+                disabled={busy === l.id}
+                title="Hand this lead back to the admin"
+                className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
+              >
+                Transfer to admin
               </button>
             </div>
-
-            {l.notes && (
-              <p className="w-full border-t border-line pt-2 text-[12.5px] text-[color:var(--text-muted)]">
-                {l.notes}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {calling && (
-        <CallModal
-          lead={calling}
-          onClose={() => setCalling(null)}
-          onLogged={() => {
-            setCalling(null);
-            load();
-          }}
-        />
+          ))}
+        </div>
       )}
     </div>
-  );
-}
-
-export default function CallingClient({
-  initial,
-}: {
-  initial: { tab: Tab; leads: Lead[]; counts: Record<string, number> };
-}) {
-  return (
-    <Suspense fallback={<div className="panel p-5 text-sm">Loading…</div>}>
-      <CallingInner initial={initial} />
-    </Suspense>
   );
 }

@@ -89,7 +89,14 @@ export type LeadQuery = {
   owner?: string;
   q?: string;
   status?: string;
-  /** "open" | "qualified" | "dead" | "won" — groups of statuses. */
+  /**
+   * "open" | "qualified" | "dead" | "won" | "callable" — groups of statuses.
+   * "callable" is everything still worth ringing: anything not closed and not
+   * already won, INCLUDING cold leads from an imported sheet. It is what the
+   * calling screen lists, because a caller handed two hundred numbers should
+   * see two hundred numbers, not an empty page because of what they are
+   * filed as.
+   */
   bucket?: string;
   source?: string;
   destination?: string;
@@ -97,6 +104,8 @@ export type LeadQuery = {
   priority?: string;
   /** "today" | "overdue" | "uncontacted" */
   due?: string;
+  /** "calling" orders by who is due first, then who has never been rung. */
+  order?: string;
   from?: string;
   to?: string;
   limit?: number;
@@ -111,7 +120,7 @@ export async function listLeads(
   const {
     owner, q = "", status = "", bucket = "", source = "", destination = "",
     visaType = "", priority = "", due = "", from = "", to = "",
-    limit = 100, offset = 0,
+    order = "", limit = 100, offset = 0,
   } = opts;
   const t = today();
   const needle = q.trim();
@@ -128,6 +137,8 @@ export async function listLeads(
         ? sql`status = ANY(${DEAD_STATUSES})`
         : bucket === "won"
         ? sql`status = ${WON_STATUS}`
+        : bucket === "callable"
+        ? sql`status <> ALL(${[...DEAD_STATUSES, WON_STATUS]})`
         : sql`TRUE`
     }
     AND ${source ? sql`source = ${source}` : sql`TRUE`}
@@ -157,7 +168,13 @@ export async function listLeads(
   const [rows, [count]] = await Promise.all([
     sql<Row[]>`
       SELECT ${sql.unsafe(COLUMNS)} FROM leads WHERE ${where}
-      ORDER BY score DESC, created_at DESC
+      ORDER BY ${
+        order === "calling"
+          ? // Due first, oldest date at the top; leads with no date at all
+            // (a freshly imported sheet) come after those, oldest first.
+            sql`(next_follow_up_date = '') ASC, next_follow_up_date ASC, created_at ASC`
+          : sql`score DESC, created_at DESC`
+      }
       LIMIT ${limit} OFFSET ${offset}
     `,
     sql<{ n: string }[]>`SELECT COUNT(*) AS n FROM leads WHERE ${where}`,

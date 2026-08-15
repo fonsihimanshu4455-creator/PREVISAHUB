@@ -147,6 +147,15 @@ export const ENGLISH_TEST_STATUSES = [
 // ------------------------------ call outcomes ------------------------------
 
 export const CALL_OUTCOMES = [
+  // The five a telecaller actually uses. They are the whole dropdown on the
+  // calling screen: everything else on this list belongs to the fuller form a
+  // counsellor fills in, and a caller never sees it.
+  "Call Later",
+  "Call Tomorrow",
+  "Not Interested",
+  "Switched Off",
+  "No Incoming",
+
   "Connected – Interested",
   "Connected – Not Interested",
   "Connected – Need Information",
@@ -161,11 +170,38 @@ export const CALL_OUTCOMES = [
 ] as const;
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];
 
+/** The only outcomes the calling screen offers, in the order they appear. */
+export const SIMPLE_OUTCOMES: CallOutcome[] = [
+  "Call Later",
+  "Call Tomorrow",
+  "Not Interested",
+  "Switched Off",
+  "No Incoming",
+];
+
+/**
+ * When to ring back, in days, for each simple outcome. The caller does not
+ * pick a date — the outcome decides it, which is the whole point of a list
+ * this short. Null means the lead is finished.
+ */
+export const OUTCOME_GAP: Partial<Record<CallOutcome, number | null>> = {
+  "Call Later": 3,
+  "Call Tomorrow": 1,
+  "Switched Off": 1,
+  "No Incoming": 1,
+  "Not Interested": null,
+};
+
 /**
  * Which outcomes mean a human actually spoke to a human. Contact rate is built
  * on this, so it lives with the outcomes rather than inside a stats query.
  */
 export const CONNECTED_OUTCOMES: CallOutcome[] = [
+  // Somebody picked up and spoke.
+  "Call Later",
+  "Call Tomorrow",
+  "Not Interested",
+
   "Connected – Interested",
   "Connected – Not Interested",
   "Connected – Need Information",
@@ -181,6 +217,7 @@ export const CONNECTED_OUTCOMES: CallOutcome[] = [
  * lead with a date on it (business rule 3).
  */
 export const TERMINAL_OUTCOMES: CallOutcome[] = [
+  "Not Interested",
   "Connected – Not Interested",
   "Wrong Number",
   "Not Eligible",
@@ -188,6 +225,12 @@ export const TERMINAL_OUTCOMES: CallOutcome[] = [
 
 /** The status a call outcome implies, when it clearly implies one. */
 export const OUTCOME_STATUS: Partial<Record<CallOutcome, LeadStatus>> = {
+  "Call Later": "Contacted",
+  "Call Tomorrow": "Contacted",
+  "Not Interested": "Not Interested",
+  "Switched Off": "Attempted Contact",
+  "No Incoming": "Attempted Contact",
+
   "Connected – Interested": "Interested",
   "Connected – Not Interested": "Not Interested",
   "Connected – Need Information": "Contacted",

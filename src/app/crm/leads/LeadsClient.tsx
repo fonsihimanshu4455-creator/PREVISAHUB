@@ -42,7 +42,8 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
   const [rowError, setRowError] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [assignTo, setAssignTo] = useState("");
-  const [assignStatus, setAssignStatus] = useState("New Lead");
+  // Sending a number to a caller means it is to be called, so there is no
+  // status to choose: the server puts it in play.
   const [assignAll, setAssignAll] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -123,13 +124,10 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
    */
   async function assign() {
     const count = assignAll ? total : picked.size;
-    if (!assignTo && !assignStatus) return;
+    if (!assignTo) return;
     if (
       !window.confirm(
-        `Assign ${count} lead${count === 1 ? "" : "s"}` +
-          (assignTo ? ` to ${assignTo}` : "") +
-          (assignStatus ? `, and set the status to ${assignStatus}` : "") +
-          "?"
+        `Send ${count} number${count === 1 ? "" : "s"} to ${assignTo}?`
       )
     ) {
       return;
@@ -137,8 +135,8 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
     setSaving("bulk");
     setRowError("");
     const body = assignAll
-      ? { filter: { q: q.trim(), ...filters }, owner: assignTo, status: assignStatus }
-      : { ids: [...picked], owner: assignTo, status: assignStatus };
+      ? { filter: { q: q.trim(), ...filters }, owner: assignTo }
+      : { ids: [...picked], owner: assignTo };
     const r = await fetch("/api/crm/leads/assign", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -251,32 +249,19 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
               onChange={(e) => setAssignTo(e.target.value)}
               className="rounded-xl border border-line-strong bg-surface px-3 py-2 text-[13px]"
             >
-              <option value="">Assign to…</option>
+              <option value="">Choose a caller…</option>
               {team.map((t) => (
                 <option key={t.id} value={t.name}>
                   {t.name}
                 </option>
               ))}
             </select>
-            <select
-              value={assignStatus}
-              onChange={(e) => setAssignStatus(e.target.value)}
-              title="Cold leads are not in anyone's call queue. Moving them to New Lead puts them there."
-              className="rounded-xl border border-line-strong bg-surface px-3 py-2 text-[13px]"
-            >
-              <option value="">Leave the status alone</option>
-              {LEAD_STATUSES.filter((s) => !REASON_REQUIRED.includes(s)).map((s) => (
-                <option key={s} value={s}>
-                  Set status: {s}
-                </option>
-              ))}
-            </select>
             <button
               onClick={assign}
-              disabled={saving === "bulk" || (!assignTo && !assignStatus)}
+              disabled={saving === "bulk" || !assignTo}
               className="rounded-xl bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
             >
-              {saving === "bulk" ? "Assigning…" : "Send to caller"}
+              {saving === "bulk" ? "Sending…" : "Send to caller"}
             </button>
             <button
               onClick={() => {
