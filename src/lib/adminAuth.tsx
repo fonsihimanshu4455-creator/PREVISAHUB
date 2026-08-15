@@ -33,7 +33,9 @@ export function useAdminAuth() {
     };
   }, []);
 
-  const login = useCallback(async (password: string): Promise<boolean> => {
+  // Returns "" on success, or the reason the login failed — which is not
+  // always "wrong password", and the owner cannot guess which it was.
+  const login = useCallback(async (password: string): Promise<string> => {
     try {
       const res = await fetch("/api/login", {
         method: "POST",
@@ -42,11 +44,12 @@ export function useAdminAuth() {
       });
       if (res.ok) {
         setAuthed(true);
-        return true;
+        return "";
       }
-      return false;
+      const body = await res.json().catch(() => null);
+      return body?.error || "Wrong password. Try again.";
     } catch {
-      return false;
+      return "Could not reach the server. Check your connection and try again.";
     }
   }, []);
 

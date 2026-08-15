@@ -124,21 +124,56 @@ export async function writeContent(content: SiteContent): Promise<void> {
 const PASSWORD_TTL = 30_000;
 let passwordCache: { value: string; at: number } | null = null;
 
-export async function getAdminPassword(): Promise<string> {
+export type PasswordSource =
+  /** The password the owner set, read from the database. */
+  | "stored"
+  /** No password saved yet — the ADMIN_PASSWORD env var or the setup default. */
+  | "setup"
+  /** Storage is configured but unreachable, so the saved password is unknown. */
+  | "unreachable";
+
+export type AdminPassword = {
+  value: string;
+  source: PasswordSource;
+  error?: string;
+};
+
+/**
+ * The password the login screen must match.
+ *
+ * The failure case matters more than the happy one. When storage is
+ * configured but the read fails — the usual cause being a rotated database
+ * password that was never updated in the deployment — this falls back to the
+ * setup password so the owner is not locked out of a fresh install. That
+ * fallback is deliberately NOT cached and is reported as `unreachable`,
+ * because a cached fallback would mean the setup password is quietly accepted
+ * for the next thirty seconds while the real one is refused. That is both a
+ * hole and the most confusing possible symptom.
+ */
+export async function readAdminPassword(): Promise<AdminPassword> {
   if (passwordCache && Date.now() - passwordCache.at < PASSWORD_TTL) {
-    return passwordCache.value;
+    return { value: passwordCache.value, source: "stored" };
   }
-  let value = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
-  if (storageConfigured()) {
-    try {
-      const stored = await get(KV_PASSWORD_KEY);
-      if (stored) value = stored;
-    } catch {
-      /* fall through to the env/default password */
+  const setup = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
+  if (!storageConfigured()) return { value: setup, source: "setup" };
+
+  try {
+    const stored = await get(KV_PASSWORD_KEY);
+    if (stored) {
+      passwordCache = { value: stored, at: Date.now() };
+      return { value: stored, source: "stored" };
     }
+    // Read fine, nothing saved yet: still the setup password, and safe to
+    // cache — it is a real answer, not a guess made after a failure.
+    passwordCache = { value: setup, at: Date.now() };
+    return { value: setup, source: "setup" };
+  } catch (e) {
+    return { value: setup, source: "unreachable", error: String(e) };
   }
-  passwordCache = { value, at: Date.now() };
-  return value;
+}
+
+export async function getAdminPassword(): Promise<string> {
+  return (await readAdminPassword()).value;
 }
 
 export async function setAdminPassword(password: string): Promise<boolean> {

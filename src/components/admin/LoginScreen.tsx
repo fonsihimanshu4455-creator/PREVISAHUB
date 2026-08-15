@@ -7,17 +7,18 @@ import Icon from "@/components/admin/Icon";
 export default function LoginScreen({
   onLogin,
 }: {
-  onLogin: (password: string) => Promise<boolean>;
+  /** Resolves to "" on success, or the reason it failed. */
+  onLogin: (password: string) => Promise<string>;
 }) {
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      if (!(await onLogin(password))) setError(true);
+      setError(await onLogin(password));
     } finally {
       setBusy(false);
     }
@@ -42,13 +43,15 @@ export default function LoginScreen({
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
-            setError(false);
+            setError("");
           }}
           placeholder="Password"
           className="mt-6 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none"
         />
         {error && (
-          <p className="mt-2 text-sm text-red-500">Wrong password. Try again.</p>
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-left text-sm text-red-700">
+            {error}
+          </p>
         )}
         <button
           type="submit"
