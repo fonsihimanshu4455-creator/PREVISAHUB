@@ -11,6 +11,10 @@
 // So: one list, one dropdown of five outcomes, and a way to hand a lead back
 // to the admin. Picking an outcome sets the ring-back date itself and moves
 // the lead on; the caller never types a date.
+//
+// There is no dial button. Callers work from a phone or a headset beside the
+// screen, and a tel: link on a desktop opens whatever the browser feels like —
+// so the number is plain text, selected in one click to copy.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
@@ -108,20 +112,11 @@ export default function CallingClient({
               {/* Name and number — the only two things that matter here. */}
               <div className="min-w-[190px] flex-1">
                 <div className="font-display text-[16px] font-bold">{l.name}</div>
-                <a
-                  href={`tel:${l.phone.replace(/[^0-9+]/g, "")}`}
-                  className="text-[15px] tabular-nums text-[color:var(--text-muted)] hover:text-accent"
-                >
+                <div className="select-all text-[15px] tabular-nums text-[color:var(--text-muted)]">
                   {l.phone}
-                </a>
+                </div>
               </div>
 
-              <a
-                href={`tel:${l.phone.replace(/[^0-9+]/g, "")}`}
-                className="rounded-xl bg-[color:var(--brand)] px-5 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110"
-              >
-                Call
-              </a>
               <a
                 href={`https://wa.me/${(l.whatsapp || l.phone).replace(/[^0-9]/g, "")}`}
                 target="_blank"
