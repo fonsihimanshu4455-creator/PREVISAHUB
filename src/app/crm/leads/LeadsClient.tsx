@@ -18,7 +18,7 @@ import {
 const PAGE = 50;
 
 function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) {
-  const { permissions } = useCrm();
+  const { permissions, team } = useCrm();
   const params = useSearchParams();
   const router = useRouter();
 
@@ -40,6 +40,10 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
   const [editing, setEditing] = useState<Lead | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [rowError, setRowError] = useState("");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [assignTo, setAssignTo] = useState("");
+  const [assignStatus, setAssignStatus] = useState("New Lead");
+  const [assignAll, setAssignAll] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
   const load = useCallback(async () => {
@@ -52,6 +56,10 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
     const r = await fetch(`/api/crm/leads?${p}`).then((x) => x.json());
     setLeads(Array.isArray(r.leads) ? r.leads : []);
     setTotal(r.total ?? 0);
+    // A selection that outlived the rows it referred to would assign the wrong
+    // people, so it is dropped whenever the list is refetched.
+    setPicked(new Set());
+    setAssignAll(false);
     setBusy(false);
   }, [q, filters, page]);
 
@@ -96,6 +104,53 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
     setSaving(null);
     if (r.error) setRowError(r.error);
     else replace(r.lead);
+  }
+
+  function togglePick(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setAssignAll(false);
+  }
+
+  /**
+   * Hand the selected leads to somebody. Sends ids normally; when the whole
+   * filtered set is chosen it sends the filter instead, so the server assigns
+   * all of them rather than only the page on screen.
+   */
+  async function assign() {
+    const count = assignAll ? total : picked.size;
+    if (!assignTo && !assignStatus) return;
+    if (
+      !window.confirm(
+        `Assign ${count} lead${count === 1 ? "" : "s"}` +
+          (assignTo ? ` to ${assignTo}` : "") +
+          (assignStatus ? `, and set the status to ${assignStatus}` : "") +
+          "?"
+      )
+    ) {
+      return;
+    }
+    setSaving("bulk");
+    setRowError("");
+    const body = assignAll
+      ? { filter: { q: q.trim(), ...filters }, owner: assignTo, status: assignStatus }
+      : { ids: [...picked], owner: assignTo, status: assignStatus };
+    const r = await fetch("/api/crm/leads/assign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((x) => x.json());
+    setSaving(null);
+    if (r.error) setRowError(r.error);
+    else {
+      setPicked(new Set());
+      setAssignAll(false);
+      load();
+    }
   }
 
   const setFilter = (k: string, v: string) => {
@@ -177,11 +232,85 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
         </div>
       )}
 
+      {permissions.canAssign && picked.size > 0 && (
+        <div className="sticky top-[52px] z-20 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-accent-soft px-4 py-3">
+          <span className="text-[13px] font-semibold">
+            {assignAll ? total : picked.size} selected
+          </span>
+          {!assignAll && total > leads.length && picked.size === leads.length && (
+            <button
+              onClick={() => setAssignAll(true)}
+              className="text-[12.5px] font-semibold text-accent hover:underline"
+            >
+              Select all {total} matching this filter
+            </button>
+          )}
+          <span className="ml-auto flex flex-wrap items-center gap-2">
+            <select
+              value={assignTo}
+              onChange={(e) => setAssignTo(e.target.value)}
+              className="rounded-xl border border-line-strong bg-surface px-3 py-2 text-[13px]"
+            >
+              <option value="">Assign to…</option>
+              {team.map((t) => (
+                <option key={t.id} value={t.name}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={assignStatus}
+              onChange={(e) => setAssignStatus(e.target.value)}
+              title="Cold leads are not in anyone's call queue. Moving them to New Lead puts them there."
+              className="rounded-xl border border-line-strong bg-surface px-3 py-2 text-[13px]"
+            >
+              <option value="">Leave the status alone</option>
+              {LEAD_STATUSES.filter((s) => !REASON_REQUIRED.includes(s)).map((s) => (
+                <option key={s} value={s}>
+                  Set status: {s}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={assign}
+              disabled={saving === "bulk" || (!assignTo && !assignStatus)}
+              className="rounded-xl bg-accent px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
+            >
+              {saving === "bulk" ? "Assigning…" : "Send to caller"}
+            </button>
+            <button
+              onClick={() => {
+                setPicked(new Set());
+                setAssignAll(false);
+              }}
+              className="btn-ghost text-[13px]"
+            >
+              Clear
+            </button>
+          </span>
+        </div>
+      )}
+
       <div className="panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="data-table w-full text-[13.5px]">
             <thead>
               <tr>
+                {permissions.canAssign && (
+                  <th className="w-9 px-3 py-2.5">
+                    <input
+                      type="checkbox"
+                      aria-label="Select every lead on this page"
+                      checked={leads.length > 0 && picked.size === leads.length}
+                      onChange={(e) => {
+                        setPicked(
+                          e.target.checked ? new Set(leads.map((l) => l.id)) : new Set()
+                        );
+                        setAssignAll(false);
+                      }}
+                    />
+                  </th>
+                )}
                 <th className="px-4 py-2.5 text-left">Client</th>
                 <th className="px-3 py-2.5 text-left">Mobile</th>
                 <th className="px-3 py-2.5 text-left">Destination / Visa</th>
@@ -197,7 +326,22 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
             </thead>
             <tbody>
               {leads.map((l) => (
-                <tr key={l.id} className="transition hover:bg-accent/[0.04]">
+                <tr
+                  key={l.id}
+                  className={`transition hover:bg-accent/[0.04] ${
+                    picked.has(l.id) ? "bg-accent/[0.06]" : ""
+                  }`}
+                >
+                  {permissions.canAssign && (
+                    <td className="px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${l.name}`}
+                        checked={picked.has(l.id)}
+                        onChange={() => togglePick(l.id)}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-2.5">
                     <Link href={`/crm/leads/${l.id}`} className="font-semibold hover:text-accent">
                       {l.name}
@@ -281,7 +425,7 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
               ))}
               {leads.length === 0 && !busy && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-[color:var(--text-faint)]">
+                  <td colSpan={10} className="px-4 py-12 text-center text-[color:var(--text-faint)]">
                     {total === 0 && !q && chips.length === 0
                       ? "No leads yet — add the first one."
                       : "No leads match those filters."}

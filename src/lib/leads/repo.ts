@@ -465,25 +465,28 @@ export async function coolOffStale(actor = "system"): Promise<number> {
  */
 export async function callQueueCounts(
   owner?: string
-): Promise<{ overdue: number; today: number; uncontacted: number; all: number }> {
-  const empty = { overdue: 0, today: 0, uncontacted: 0, all: 0 };
+): Promise<{ overdue: number; today: number; uncontacted: number; all: number; cold: number }> {
+  const empty = { overdue: 0, today: 0, uncontacted: 0, all: 0, cold: 0 };
   if (!sql) return empty;
   await ensureLeadSchema();
   const t = today();
   const scope = owner ? sql`lower(owner) = lower(${owner})` : sql`TRUE`;
   const [r] = await sql<Record<string, string>[]>`
     SELECT
-      COUNT(*) FILTER (WHERE next_follow_up_date <> '' AND next_follow_up_date < ${t}) AS overdue,
-      COUNT(*) FILTER (WHERE next_follow_up_date = ${t})                               AS today,
-      COUNT(*) FILTER (WHERE last_contact_date = '')                                   AS uncontacted,
-      COUNT(*)                                                                          AS all
-    FROM leads
-    WHERE ${scope} AND status = ANY(${ACTIVE_STATUSES})
+      COUNT(*) FILTER (WHERE open AND next_follow_up_date <> '' AND next_follow_up_date < ${t}) AS overdue,
+      COUNT(*) FILTER (WHERE open AND next_follow_up_date = ${t})   AS today,
+      COUNT(*) FILTER (WHERE open AND last_contact_date = '')       AS uncontacted,
+      COUNT(*) FILTER (WHERE open)                                  AS all,
+      COUNT(*) FILTER (WHERE status = 'Cold Lead')                  AS cold
+    FROM (
+      SELECT *, status = ANY(${ACTIVE_STATUSES}) AS open FROM leads WHERE ${scope}
+    ) x
   `;
   return {
     overdue: Number(r?.overdue ?? 0),
     today: Number(r?.today ?? 0),
     uncontacted: Number(r?.uncontacted ?? 0),
     all: Number(r?.all ?? 0),
+    cold: Number(r?.cold ?? 0),
   };
 }

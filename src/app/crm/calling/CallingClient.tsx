@@ -10,13 +10,17 @@ import CallModal from "@/components/salescrm/CallModal";
 import { ScorePill, StatusBadge, dueTone } from "@/components/salescrm/ui";
 import { Lead } from "@/lib/leads/types";
 
-type Tab = "overdue" | "today" | "uncontacted" | "all";
+type Tab = "overdue" | "today" | "uncontacted" | "all" | "cold";
 
-const TABS: { key: Tab; label: string; due: string; bucket: string }[] = [
+const TABS: { key: Tab; label: string; due: string; bucket: string; status?: string }[] = [
   { key: "overdue", label: "Overdue", due: "overdue", bucket: "open" },
   { key: "today", label: "Due today", due: "today", bucket: "open" },
   { key: "uncontacted", label: "Never called", due: "uncontacted", bucket: "open" },
   { key: "all", label: "All open", due: "", bucket: "open" },
+  // Imported sheets land as Cold Lead, which is not an "open" status — so
+  // without this tab a caller handed two hundred old numbers would open the
+  // queue and find it empty.
+  { key: "cold", label: "Old database", due: "", bucket: "", status: "Cold Lead" },
 ];
 
 function CallingInner({ initial }: { initial: { tab: Tab; leads: Lead[]; counts: Record<string, number> } }) {
@@ -34,8 +38,10 @@ function CallingInner({ initial }: { initial: { tab: Tab; leads: Lead[]; counts:
   const load = useCallback(async () => {
     setBusy(true);
     const t = TABS.find((x) => x.key === tab)!;
-    const p = new URLSearchParams({ bucket: t.bucket, limit: "200" });
+    const p = new URLSearchParams({ limit: "200" });
+    if (t.bucket) p.set("bucket", t.bucket);
     if (t.due) p.set("due", t.due);
+    if (t.status) p.set("status", t.status);
     const r = await fetch(`/api/crm/leads?${p}`).then((x) => x.json());
     setLeads(Array.isArray(r.leads) ? r.leads : []);
     setBusy(false);
