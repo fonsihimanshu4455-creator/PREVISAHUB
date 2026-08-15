@@ -19,7 +19,31 @@
 
 import { useCallback, useState } from "react";
 import CallScorecard from "@/components/salescrm/CallScorecard";
+import type { CallQueueCounts } from "@/lib/leads/repo";
 import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
+
+type Tab = "tocall" | "tomorrow" | "later" | "called" | "calls";
+
+const TABS: { key: Tab; label: string; empty: string }[] = [
+  { key: "tocall", label: "To call", empty: "Nothing due. Come back tomorrow." },
+  { key: "tomorrow", label: "Tomorrow", empty: "Nothing set for tomorrow yet." },
+  { key: "later", label: "Later", empty: "Nothing booked further out." },
+  { key: "called", label: "Called", empty: "No calls logged yet." },
+];
+
+/** "in 3 days" / "tomorrow" / "2 days ago" — a date on its own means nothing. */
+function whenLabel(iso: string): string {
+  if (!iso) return "no date";
+  const day = 86400000;
+  const a = Date.parse(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
+  const b = Date.parse(iso + "T00:00:00Z");
+  if (Number.isNaN(b)) return iso;
+  const d = Math.round((b - a) / day);
+  if (d === 0) return "today";
+  if (d === 1) return "tomorrow";
+  if (d === -1) return "yesterday";
+  return d < 0 ? `${-d} days ago` : `in ${d} days`;
+}
 
 const DESCRIPTION: Record<string, string> = {
   "Call Later": "ring back in 3 days",
@@ -34,14 +58,46 @@ export default function CallingClient({
 }: {
   /** `me` is passed in rather than read from context, so the telecaller's own
    *  page at /calling can render exactly this list without the CRM shell. */
-  initial: { leads: Lead[]; total: number; me: string; canPickCaller?: boolean };
+  initial: {
+    leads: Lead[];
+    total: number;
+    me: string;
+    counts: CallQueueCounts;
+    canPickCaller?: boolean;
+  };
 }) {
-  const [tab, setTab] = useState<"numbers" | "calls">("numbers");
+  const [tab, setTab] = useState<Tab>("tocall");
+  const [counts, setCounts] = useState(initial.counts);
   const [leads, setLeads] = useState<Lead[]>(initial.leads);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [doneCount, setDoneCount] = useState(0);
   const [noted, setNoted] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  const openTab = useCallback(async (next: Tab) => {
+    setTab(next);
+    if (next === "calls") return;
+    setLoading(true);
+    setError("");
+    const p = new URLSearchParams({
+      bucket: "callable",
+      queue: next,
+      order: "calling",
+      limit: "300",
+    });
+    const r = await fetch(`/api/crm/leads?${p}`).then((x) => x.json());
+    setLoading(false);
+    if (r.error) return setError(r.error);
+    setLeads(Array.isArray(r.leads) ? r.leads : []);
+  }, []);
+
+  /** Re-read the tab counts after anything that moves a lead between piles. */
+  const refreshCounts = useCallback(async () => {
+    const r = await fetch("/api/crm/call-queue-counts").then((x) => x.json());
+    if (r?.counts) setCounts(r.counts);
+  }, []);
 
   /** Log the outcome and take the lead off the list — it has a date now. */
   const save = useCallback(async (lead: Lead, outcome: string) => {
@@ -57,7 +113,8 @@ export default function CallingClient({
     if (r.error) return setError(r.error);
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     setDoneCount((n) => n + 1);
-  }, []);
+    refreshCounts();
+  }, [refreshCounts]);
 
   /** Add a note without leaving the row. Appended, so nothing is overwritten. */
   const addNote = useCallback(async (lead: Lead) => {
@@ -91,7 +148,8 @@ export default function CallingClient({
     setBusy(null);
     if (r.error) return setError(r.error);
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-  }, []);
+    refreshCounts();
+  }, [refreshCounts]);
 
   return (
     <div className="space-y-4">
@@ -100,21 +158,21 @@ export default function CallingClient({
           <p className="eyebrow">Calling</p>
           <h1 className="mt-1 font-display text-display-lg font-bold">My numbers</h1>
           <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
-            {initial.me} · {leads.length} to call
+            {initial.me} · {counts.tocall} to call today
             {doneCount > 0 && ` · ${doneCount} done today`}
           </p>
         </div>
       </div>
 
-      <div className="flex gap-1 border-b border-line">
-        {([
-          ["numbers", `To call (${leads.length})`],
-          ["calls", "My calls"],
-        ] as const).map(([k, label]) => (
+      <div className="flex gap-1 overflow-x-auto border-b border-line">
+        {[
+          ...TABS.map((t) => [t.key, `${t.label} (${counts[t.key as keyof CallQueueCounts]})`] as const),
+          ["calls", "My calls"] as const,
+        ].map(([k, label]) => (
           <button
             key={k}
-            onClick={() => setTab(k)}
-            className={`relative px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${
+            onClick={() => openTab(k as Tab)}
+            className={`relative whitespace-nowrap px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${
               tab === k
                 ? "text-[color:var(--text)]"
                 : "text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]"
@@ -132,21 +190,25 @@ export default function CallingClient({
 
       {tab === "calls" && <CallScorecard canPickCaller={initial.canPickCaller} />}
 
-      {error && tab === "numbers" && (
+      {error && tab !== "calls" && (
         <p className="rounded-xl bg-[color:var(--crit-soft)] px-4 py-3 text-[13.5px] text-[color:var(--crit)]">
           {error}
         </p>
       )}
 
-      {tab === "numbers" && (leads.length === 0 ? (
+      {tab !== "calls" && (loading ? (
+        <div className="panel p-10 text-center text-[13.5px] text-[color:var(--text-faint)]">
+          Loading…
+        </div>
+      ) : leads.length === 0 ? (
         <div className="panel p-12 text-center">
           <p className="font-display text-[16px] font-bold">
-            {doneCount > 0 ? "All done for now 🎉" : "No numbers yet"}
+            {doneCount > 0 ? "All done for now 🎉" : "Nothing here"}
           </p>
           <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
             {doneCount > 0
-              ? "Every number on your list has been called."
-              : "The admin has not sent you any numbers yet."}
+              ? "Every number due today has been called."
+              : TABS.find((t) => t.key === tab)?.empty}
           </p>
         </div>
       ) : (
@@ -164,6 +226,30 @@ export default function CallingClient({
                 <div className="select-all text-[15px] tabular-nums text-[color:var(--text-muted)]">
                   {l.phone}
                 </div>
+                {/* Why this number is in front of them, and what happened last
+                    time — without it the other tabs are just a list of names. */}
+                {(tab !== "tocall" || l.lastOutcome) && (
+                  <div className="mt-0.5 text-[12px] text-[color:var(--text-faint)]">
+                    {l.nextFollowUpDate && (
+                      <span
+                        className={
+                          l.nextFollowUpDate <= todayIso
+                            ? "font-semibold text-[color:var(--warn)]"
+                            : ""
+                        }
+                      >
+                        Call {whenLabel(l.nextFollowUpDate)}
+                      </span>
+                    )}
+                    {l.lastOutcome && (
+                      <>
+                        {l.nextFollowUpDate ? " · " : ""}
+                        last: {l.lastOutcome}
+                        {l.lastContactDate ? ` (${whenLabel(l.lastContactDate)})` : ""}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               <a

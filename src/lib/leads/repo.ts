@@ -9,7 +9,7 @@
 import { sql } from "../db";
 import { ensureLeadSchema } from "./schema";
 import { logActivity, logActivities } from "./activity";
-import { nextDueDate, scheduleFollowUp, today } from "./followups";
+import { addDays, nextDueDate, scheduleFollowUp, today } from "./followups";
 import { rescore } from "./scoring";
 import {
   ACTIVE_STATUSES, DEAD_STATUSES, EMPTY_LEAD, Lead, LeadStatus,
@@ -106,6 +106,17 @@ export type LeadQuery = {
   due?: string;
   /** "calling" orders by who is due first, then who has never been rung. */
   order?: string;
+  /**
+   * The calling panel's four piles. Without this a caller who marked a number
+   * "Call Later" would still be looking at it tomorrow, which makes the whole
+   * dropdown pointless.
+   *
+   *   tocall   — due today, overdue, or never rung and never dated
+   *   tomorrow — dated for tomorrow
+   *   later    — dated further out
+   *   called   — already spoken to at some point, whenever it is next due
+   */
+  queue?: string;
   from?: string;
   to?: string;
   limit?: number;
@@ -120,9 +131,10 @@ export async function listLeads(
   const {
     owner, q = "", status = "", bucket = "", source = "", destination = "",
     visaType = "", priority = "", due = "", from = "", to = "",
-    order = "", limit = 100, offset = 0,
+    order = "", queue = "", limit = 100, offset = 0,
   } = opts;
   const t = today();
+  const tomorrow = addDays(t, 1);
   const needle = q.trim();
 
   const where = sql`
@@ -152,6 +164,18 @@ export async function listLeads(
         ? sql`next_follow_up_date <> '' AND next_follow_up_date < ${t}`
         : due === "uncontacted"
         ? sql`last_contact_date = ''`
+        : sql`TRUE`
+    }
+    AND ${
+      queue === "tocall"
+        ? sql`((next_follow_up_date <> '' AND next_follow_up_date <= ${t})
+               OR (next_follow_up_date = '' AND last_contact_date = ''))`
+        : queue === "tomorrow"
+        ? sql`next_follow_up_date = ${tomorrow}`
+        : queue === "later"
+        ? sql`next_follow_up_date > ${tomorrow}`
+        : queue === "called"
+        ? sql`last_contact_date <> ''`
         : sql`TRUE`
     }
     AND ${from ? sql`created_at >= ${from}::date` : sql`TRUE`}
@@ -480,30 +504,34 @@ export async function coolOffStale(actor = "system"): Promise<number> {
  * purely to count them, which is four requests and eight queries before a
  * caller sees a single name.
  */
-export async function callQueueCounts(
-  owner?: string
-): Promise<{ overdue: number; today: number; uncontacted: number; all: number; cold: number }> {
-  const empty = { overdue: 0, today: 0, uncontacted: 0, all: 0, cold: 0 };
+export type CallQueueCounts = {
+  tocall: number;
+  tomorrow: number;
+  later: number;
+  called: number;
+};
+
+export async function callQueueCounts(owner?: string): Promise<CallQueueCounts> {
+  const empty = { tocall: 0, tomorrow: 0, later: 0, called: 0 };
   if (!sql) return empty;
   await ensureLeadSchema();
   const t = today();
+  const tomorrow = addDays(t, 1);
   const scope = owner ? sql`lower(owner) = lower(${owner})` : sql`TRUE`;
   const [r] = await sql<Record<string, string>[]>`
     SELECT
-      COUNT(*) FILTER (WHERE open AND next_follow_up_date <> '' AND next_follow_up_date < ${t}) AS overdue,
-      COUNT(*) FILTER (WHERE open AND next_follow_up_date = ${t})   AS today,
-      COUNT(*) FILTER (WHERE open AND last_contact_date = '')       AS uncontacted,
-      COUNT(*) FILTER (WHERE open)                                  AS all,
-      COUNT(*) FILTER (WHERE status = 'Cold Lead')                  AS cold
-    FROM (
-      SELECT *, status = ANY(${ACTIVE_STATUSES}) AS open FROM leads WHERE ${scope}
-    ) x
+      COUNT(*) FILTER (WHERE (next_follow_up_date <> '' AND next_follow_up_date <= ${t})
+                          OR (next_follow_up_date = '' AND last_contact_date = '')) AS tocall,
+      COUNT(*) FILTER (WHERE next_follow_up_date = ${tomorrow})  AS tomorrow,
+      COUNT(*) FILTER (WHERE next_follow_up_date > ${tomorrow})  AS later,
+      COUNT(*) FILTER (WHERE last_contact_date <> '')            AS called
+    FROM leads
+    WHERE ${scope} AND status <> ALL(${[...DEAD_STATUSES, WON_STATUS]})
   `;
   return {
-    overdue: Number(r?.overdue ?? 0),
-    today: Number(r?.today ?? 0),
-    uncontacted: Number(r?.uncontacted ?? 0),
-    all: Number(r?.all ?? 0),
-    cold: Number(r?.cold ?? 0),
+    tocall: Number(r?.tocall ?? 0),
+    tomorrow: Number(r?.tomorrow ?? 0),
+    later: Number(r?.later ?? 0),
+    called: Number(r?.called ?? 0),
   };
 }

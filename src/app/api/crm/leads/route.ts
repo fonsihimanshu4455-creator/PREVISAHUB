@@ -24,6 +24,8 @@ export async function GET(req: Request) {
       visaType: p.get("visaType") ?? "",
       priority: p.get("priority") ?? "",
       due: p.get("due") ?? "",
+      queue: p.get("queue") ?? "",
+      order: p.get("order") ?? "",
       from: p.get("from") ?? "",
       to: p.get("to") ?? "",
       limit: Math.min(500, Number(p.get("limit")) || 100),
