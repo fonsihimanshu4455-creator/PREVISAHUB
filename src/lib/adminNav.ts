@@ -6,11 +6,17 @@ export type AdminNavItem = {
   label: string;
   icon: IconName;
   desc: string;
-  group: "Main" | "Students" | "Website";
+  group: "Main" | "Sales" | "Students" | "Website";
 };
 
 export const adminNav: AdminNavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", desc: "Today at a glance", group: "Main" },
+
+  // The tele-sales half of the business, before a lead becomes a student.
+  { href: "/crm", label: "Sales CRM", icon: "phone", desc: "Leads, calling, follow-ups & conversions", group: "Sales" },
+  { href: "/crm/calling", label: "Call Queue", icon: "phone", desc: "Overdue, due today & never called", group: "Sales" },
+  { href: "/crm/pipeline", label: "Sales Pipeline", icon: "grid", desc: "Drag leads through the funnel", group: "Sales" },
+  { href: "/crm/reports", label: "Sales Reports", icon: "dashboard", desc: "Calling, conversion & employee KPIs", group: "Sales" },
 
   // Day-to-day work
   { href: "/admin/crm", label: "Students", icon: "students", desc: "Visa status, scores & follow-ups", group: "Students" },
@@ -36,4 +42,6 @@ export const adminNav: AdminNavItem[] = [
   { href: "/admin/floating", label: "WhatsApp Button", icon: "chat", desc: "Floating button & size", group: "Website" },
 ];
 
-export const adminNavGroups: AdminNavItem["group"][] = ["Main", "Students", "Website"];
+export const adminNavGroups: AdminNavItem["group"][] = [
+  "Main", "Sales", "Students", "Website",
+];
