@@ -432,9 +432,17 @@ export function priorityColor(p: Task["priority"]): string {
   }
 }
 
+/**
+ * Whole days between a plain date and today.
+ *
+ * Both are anchored to UTC. Without the Z these parse as LOCAL time, so a
+ * server in UTC and a browser in IST land on different days and render
+ * different words — which surfaces as a hydration mismatch the moment a page
+ * holding one of these is rendered on the server.
+ */
 export function daysFromToday(iso: string): number {
-  const a = new Date(TODAY + "T00:00:00");
-  const b = new Date(iso + "T00:00:00");
+  const a = new Date(TODAY + "T00:00:00Z");
+  const b = new Date(iso + "T00:00:00Z");
   return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
 }
 
@@ -445,6 +453,38 @@ export function relativeDue(iso: string): string {
   if (d === -1) return "Yesterday";
   if (d < 0) return `${Math.abs(d)} days ago`;
   return `In ${d} days`;
+}
+
+const WEEKDAYS = [
+  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+];
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+/**
+ * "Sunday 9 August 2026", spelled out by hand.
+ *
+ * toLocaleDateString cannot be used on anything rendered on the server: Node
+ * and Chrome ship different ICU data and disagree about the comma after the
+ * weekday, so the server writes one string, the browser expects another, and
+ * React throws the whole page away and re-renders it on the client. Building
+ * the string ourselves makes it identical everywhere.
+ */
+export function longDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return "";
+  return `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${
+    MONTHS[d.getUTCMonth()]
+  } ${d.getUTCFullYear()}`;
+}
+
+/** "9 August" — the same reasoning, without the year. */
+export function shortDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return "";
+  return `${WEEKDAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 }
 
 /** Rupee formatting, used by both server reports and client tables. */

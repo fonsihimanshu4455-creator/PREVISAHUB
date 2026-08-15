@@ -51,7 +51,11 @@ export function SiteContentProvider({
   // public site, which already has the server-rendered content, and the CRM,
   // which does not use website content at all. Only the editor under /admin
   // needs a guaranteed-fresh copy, so only /admin fetches one.
-  const editing = path.startsWith("/admin");
+  // The website editor lives under /admin, but so do the CRM, sales, import
+  // and staff screens, and none of those show website content.
+  const NOT_EDITING = ["/admin/crm", "/admin/sales", "/admin/import", "/admin/staff"];
+  const editing =
+    path.startsWith("/admin") && !NOT_EDITING.some((p) => path.startsWith(p));
   useEffect(() => {
     if (!editing) {
       setReady(true);

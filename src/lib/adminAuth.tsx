@@ -5,12 +5,16 @@ import { useCallback, useEffect, useState } from "react";
 // Server-backed admin auth. Login sets an httpOnly session cookie, so the admin
 // can log in from any device/browser. Works even before a database is connected
 // (password falls back to the ADMIN_PASSWORD env var or the built-in default).
-export function useAdminAuth() {
-  const [authed, setAuthed] = useState(false);
-  const [ready, setReady] = useState(false);
-  const [storage, setStorage] = useState(false);
+export function useAdminAuth(initial?: { authed: boolean; storage: boolean }) {
+  const [authed, setAuthed] = useState(initial?.authed ?? false);
+  // With the answer already in hand there is nothing to wait for.
+  const [ready, setReady] = useState(initial !== undefined);
+  const [storage, setStorage] = useState(initial?.storage ?? false);
 
   useEffect(() => {
+    // The server resolved this and passed it in — asking again would put a
+    // round trip in front of every admin page for an answer we already have.
+    if (initial !== undefined) return;
     let cancelled = false;
     (async () => {
       try {

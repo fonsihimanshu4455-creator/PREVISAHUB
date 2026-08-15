@@ -19,14 +19,13 @@ const sora = Sora({
 });
 import { SiteContentProvider } from "@/lib/SiteContentContext";
 import ThemeInjector from "@/components/ThemeInjector";
-import { readContent } from "@/lib/storage";
+import { getCachedContent } from "@/lib/contentCache";
 
 // The layout reads site content from the database, so pages are rendered per
 // request rather than at build time. Without this, static generation of pages
 // like /_not-found waits on a database round-trip during `next build` and the
 // build worker times out.
 export const dynamic = "force-dynamic";
-import { defaultContent } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Pre Visa Hub — Study Abroad Consultant | IELTS, PTE & Visa Services",
@@ -58,9 +57,9 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Read the latest content from the database (if connected) so every visitor
-  // sees the admin's saved edits, with no loading flash.
-  const initial = (await readContent()) ?? defaultContent;
+  // Served from the cache, not the database — see contentCache.ts. Saving an
+  // edit clears the tag, so a visitor still sees the change immediately.
+  const initial = await getCachedContent();
 
   return (
     <html lang="en" className={`${inter.variable} ${sora.variable}`}>

@@ -8,6 +8,7 @@ import {
   COUNTRIES,
   Country,
   formatScore,
+  longDate,
   isIeltsPass,
   priorityColor,
   stageFill,
@@ -82,21 +83,39 @@ async function api(path: string, method: string, body?: unknown) {
   return res.json();
 }
 
-// Deterministic (UTC-anchored) so server and client render the same string.
-const TODAY_LABEL = new Date(TODAY + "T00:00:00Z").toLocaleDateString("en-GB", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
+// Spelled out by hand — see longDate. toLocaleDateString disagrees between
+// Node and the browser about the comma, which breaks hydration.
+const TODAY_LABEL = longDate(TODAY);
 
 const VIEWS: View[] = [
   "dashboard", "students", "pipeline", "tasks", "payments",
   "tests", "attendance", "documents", "calling",
 ];
 
-export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }) {
+export type CrmInitial = {
+  students: Student[];
+  total: number;
+  tasks: Task[];
+  counsellors: string[];
+  telecallers: string[];
+  role: "admin" | "staff";
+  mode: "db" | "demo";
+  /** The dashboard tab's counts, so the default tab does not fetch on open. */
+  overview?: Overview;
+};
+
+export default function CrmBoard({
+  showHeader = true,
+  initial,
+}: {
+  showHeader?: boolean;
+  /**
+   * Rendered on the server where the page can supply it, so the board paints
+   * with its rows already in place instead of opening empty and then asking
+   * for students, tasks and counsellors in three separate requests.
+   */
+  initial?: CrmInitial;
+}) {
   const params = useSearchParams();
   const tabParam = params.get("tab");
   const [view, setView] = useState<View>(
@@ -109,15 +128,17 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   useEffect(() => {
     if (VIEWS.includes(tabParam as View)) setView(tabParam as View);
   }, [tabParam]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [mode, setMode] = useState<"db" | "demo" | "loading">("loading");
+  const [students, setStudents] = useState<Student[]>(initial?.students ?? []);
+  const [tasks, setTasks] = useState<Task[]>(initial?.tasks ?? []);
+  const [mode, setMode] = useState<"db" | "demo" | "loading">(
+    initial?.mode ?? "loading"
+  );
   const [error, setError] = useState<string | null>(null);
   const [fees, setFees] = useState<FeeSummary[]>([]);
   const [payments, setPayments] = useState<PaymentRec[]>([]);
   const [totals, setTotals] = useState<{ billed: number; collected: number; pending: number } | null>(null);
-  const [counsellors, setCounsellors] = useState<string[]>([]);
-  const [total, setTotal] = useState(0);
+  const [counsellors, setCounsellors] = useState<string[]>(initial?.counsellors ?? []);
+  const [total, setTotal] = useState(initial?.total ?? 0);
   const [query, setQuery] = useState<Query>(() => ({
     q: "",
     stage: params.get("stage") ?? "All",
@@ -126,21 +147,23 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     test: params.get("test") ?? "",
   }));
   const [searching, setSearching] = useState(false);
-  const [telecallers, setTelecallers] = useState<string[]>([]);
+  const [telecallers, setTelecallers] = useState<string[]>(initial?.telecallers ?? []);
   // Null until the first response says who this is. Starting as "admin" would
   // flash the Payments tab at a counsellor for a moment.
-  const [role, setRole] = useState<"admin" | "staff" | null>(null);
+  const [role, setRole] = useState<"admin" | "staff" | null>(initial?.role ?? null);
 
   useEffect(() => {
+    // Already have everything from the server — nothing to ask for.
+    if (initial) return;
     let alive = true;
     (async () => {
       try {
-        const initial = new URLSearchParams();
+        const first = new URLSearchParams();
         for (const k of ["stage", "country", "due", "test"]) {
-          if (params.get(k)) initial.set(k, params.get(k)!);
+          if (params.get(k)) first.set(k, params.get(k)!);
         }
         const [rs, rt, rc] = await Promise.all([
-          fetch(`/api/students?${initial}`).then((r) => r.json()),
+          fetch(`/api/students?${first}`).then((r) => r.json()),
           fetch("/api/tasks").then((r) => r.json()),
           fetch("/api/counsellors").then((r) => r.json()),
         ]);
@@ -339,7 +362,12 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       </div>
 
       {view === "dashboard" && (
-        <Dashboard students={students} onGoto={setView} onDrill={drill} />
+        <Dashboard
+          students={students}
+          onGoto={setView}
+          onDrill={drill}
+          initial={initial?.overview}
+        />
       )}
       {view === "students" && (
         <Students
@@ -487,16 +515,19 @@ function Dashboard({
   students,
   onGoto,
   onDrill,
+  initial,
 }: {
   students: Student[];
   onGoto: (v: View) => void;
   onDrill: (patch: Partial<Query>) => void;
+  initial?: Overview;
 }) {
   // The student list on screen is one filtered page of at most 200 rows, so
   // counting it would understate a real caseload. The totals are counted in
   // SQL instead; the loaded rows are only a fallback if that request fails.
-  const [ov, setOv] = useState<Overview | null>(null);
+  const [ov, setOv] = useState<Overview | null>(initial ?? null);
   useEffect(() => {
+    if (initial) return; // the server already counted it
     let alive = true;
     fetch("/api/overview")
       .then((r) => r.json())
@@ -509,7 +540,7 @@ function Dashboard({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initial]);
 
   const countStage = (st: string) =>
     ov ? ov.byStage[st] ?? 0 : students.filter((s) => s.stage === st).length;

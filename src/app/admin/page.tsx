@@ -6,7 +6,9 @@ import { adminNav } from "@/lib/adminNav";
 import { useSiteContent } from "@/lib/SiteContentContext";
 import Icon from "@/components/admin/Icon";
 import Stat from "@/components/admin/Stat";
-import { formatINR, formatINRShort, stageFill, VISA_STAGES, VisaStage } from "@/lib/crm-data";
+import {
+  formatINR, formatINRShort, shortDate, stageFill, VISA_STAGES, VisaStage,
+} from "@/lib/crm-data";
 
 type Overview = {
   total: number;
@@ -83,11 +85,7 @@ export default function AdminDashboard() {
             {greeting()}
           </h1>
           <p className="mt-1 text-[14px] text-[color:var(--text-muted)]">
-            {new Date().toLocaleDateString("en-GB", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
+            {shortDate(new Date().toISOString().slice(0, 10))}
             {loaded && total > 0 && (
               <> · {dueCount} follow-up{dueCount === 1 ? "" : "s"} due</>
             )}

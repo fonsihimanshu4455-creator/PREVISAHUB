@@ -18,6 +18,7 @@ import {
   SEED_TASKS,
   Student,
   Task,
+  VisaStage,
 } from "./crm-data";
 
 const raw = process.env.DATABASE_URL;
@@ -605,7 +606,7 @@ export async function overview(counsellor?: string) {
         .filter((s) => s.nextFollowUp <= today)
         .slice(0, 8)
         .map((s) => ({
-          id: s.id, name: s.name, notes: s.notes, phone: s.phone, stage: s.stage as string,
+          id: s.id, name: s.name, notes: s.notes, phone: s.phone, stage: s.stage,
         })),
     };
   }
@@ -625,7 +626,7 @@ export async function overview(counsellor?: string) {
                               AND score >= target_score) AS achieved
       FROM students WHERE ${where}
     `,
-    sql<{ id: string; name: string; notes: string | null; phone: string; stage: string }[]>`
+    sql<{ id: string; name: string; notes: string | null; phone: string; stage: VisaStage }[]>`
       SELECT id, name, notes, phone, stage FROM students
       WHERE ${where} AND next_follow_up <> '' AND next_follow_up <= ${today}
       ORDER BY next_follow_up ASC LIMIT 8

@@ -1,5 +1,16 @@
 "use client";
 
+// Spelled out rather than localised: Node and the browser disagree on the
+// punctuation, and the mismatch breaks hydration. See longDate in crm-data.
+const MONTH_NAMES = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+function monthLabel(month: string): string {
+  const [y, m] = month.split("-");
+  return `${MONTH_NAMES[Number(m) - 1] ?? m} ${y}`;
+}
+
 import { useEffect, useMemo, useState } from "react";
 import { formatINR, formatINRShort } from "@/lib/crm-data";
 
@@ -127,11 +138,7 @@ export default function SalesPage() {
               {byMonth.map(({ month, amount }) => (
                 <div key={month} className="flex items-center gap-3">
                   <span className="w-16 shrink-0 text-[12.5px] text-[color:var(--text-muted)]">
-                    {new Date(month + "-01T00:00:00Z").toLocaleDateString("en-GB", {
-                      month: "short",
-                      year: "2-digit",
-                      timeZone: "UTC",
-                    })}
+                    {monthLabel(month)}
                   </span>
                   <div className="h-[18px] flex-1 overflow-hidden rounded-[4px] bg-surface-sunk">
                     <div
