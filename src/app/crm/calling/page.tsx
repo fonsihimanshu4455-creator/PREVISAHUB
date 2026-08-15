@@ -5,6 +5,7 @@
 // need to choose which pile to look at first.
 
 import { crmSession } from "@/lib/leads/auth";
+import { can } from "@/lib/leads/types";
 import { listLeads } from "@/lib/leads/repo";
 import CallingClient from "./CallingClient";
 
@@ -21,5 +22,10 @@ export default async function CallingPage() {
     limit: 300,
   });
 
-  return <CallingClient initial={{ leads, total, me: user.name }} />;
+  return <CallingClient initial={{
+        leads,
+        total,
+        me: user.name,
+        canPickCaller: can(user.role, "leads:all"),
+      }} />;
 }

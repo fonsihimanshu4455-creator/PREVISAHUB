@@ -5,6 +5,7 @@
 // screen depending on which one they used.
 
 import { crmSession } from "@/lib/leads/auth";
+import { can } from "@/lib/leads/types";
 import { listLeads } from "@/lib/leads/repo";
 import CallingClient from "@/app/crm/calling/CallingClient";
 import CallingLogin from "./CallingLogin";
@@ -27,7 +28,12 @@ export default async function CallingPage() {
     <div className="min-h-screen bg-ground">
       <CallingHeader name={user.name} />
       <main className="mx-auto max-w-5xl p-4 sm:p-6">
-        <CallingClient initial={{ leads, total, me: user.name }} />
+        <CallingClient initial={{
+            leads,
+            total,
+            me: user.name,
+            canPickCaller: can(user.role, "leads:all"),
+          }} />
       </main>
     </div>
   );

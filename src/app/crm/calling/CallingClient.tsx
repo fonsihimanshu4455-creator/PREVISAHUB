@@ -18,6 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
+import CallScorecard from "@/components/salescrm/CallScorecard";
 import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
 
 const DESCRIPTION: Record<string, string> = {
@@ -33,12 +34,14 @@ export default function CallingClient({
 }: {
   /** `me` is passed in rather than read from context, so the telecaller's own
    *  page at /calling can render exactly this list without the CRM shell. */
-  initial: { leads: Lead[]; total: number; me: string };
+  initial: { leads: Lead[]; total: number; me: string; canPickCaller?: boolean };
 }) {
+  const [tab, setTab] = useState<"numbers" | "calls">("numbers");
   const [leads, setLeads] = useState<Lead[]>(initial.leads);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [doneCount, setDoneCount] = useState(0);
+  const [noted, setNoted] = useState<Set<string>>(new Set());
 
   /** Log the outcome and take the lead off the list — it has a date now. */
   const save = useCallback(async (lead: Lead, outcome: string) => {
@@ -54,6 +57,26 @@ export default function CallingClient({
     if (r.error) return setError(r.error);
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     setDoneCount((n) => n + 1);
+  }, []);
+
+  /** Add a note without leaving the row. Appended, so nothing is overwritten. */
+  const addNote = useCallback(async (lead: Lead) => {
+    const note = window.prompt(`Note for ${lead.name}:`, "");
+    if (!note || !note.trim()) return;
+    setBusy(lead.id);
+    setError("");
+    const r = await fetch(`/api/crm/leads/${lead.id}/note`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    }).then((x) => x.json());
+    setBusy(null);
+    if (r.error) return setError(r.error);
+    // Keep the row — a note is not an outcome, the number still needs calling.
+    setLeads((prev) =>
+      prev.map((l) => (l.id === lead.id ? { ...l, notes: r.notes } : l))
+    );
+    setNoted((prev) => new Set(prev).add(lead.id));
   }, []);
 
   const transfer = useCallback(async (lead: Lead) => {
@@ -83,13 +106,39 @@ export default function CallingClient({
         </div>
       </div>
 
-      {error && (
+      <div className="flex gap-1 border-b border-line">
+        {([
+          ["numbers", `To call (${leads.length})`],
+          ["calls", "My calls"],
+        ] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={`relative px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${
+              tab === k
+                ? "text-[color:var(--text)]"
+                : "text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]"
+            }`}
+          >
+            {label}
+            <span
+              className={`absolute inset-x-2 -bottom-px h-[2px] rounded-t bg-accent transition-opacity ${
+                tab === k ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          </button>
+        ))}
+      </div>
+
+      {tab === "calls" && <CallScorecard canPickCaller={initial.canPickCaller} />}
+
+      {error && tab === "numbers" && (
         <p className="rounded-xl bg-[color:var(--crit-soft)] px-4 py-3 text-[13.5px] text-[color:var(--crit)]">
           {error}
         </p>
       )}
 
-      {leads.length === 0 ? (
+      {tab === "numbers" && (leads.length === 0 ? (
         <div className="panel p-12 text-center">
           <p className="font-display text-[16px] font-bold">
             {doneCount > 0 ? "All done for now 🎉" : "No numbers yet"}
@@ -144,6 +193,19 @@ export default function CallingClient({
               </select>
 
               <button
+                onClick={() => addNote(l)}
+                disabled={busy === l.id}
+                title={l.notes ? l.notes : "Add a note about this lead"}
+                className={`rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition disabled:opacity-50 ${
+                  noted.has(l.id) || l.notes
+                    ? "border-accent/50 bg-accent-soft text-accent"
+                    : "border-line-strong text-[color:var(--text-muted)] hover:border-accent hover:text-accent"
+                }`}
+              >
+                {noted.has(l.id) ? "Note saved" : "Note"}
+              </button>
+
+              <button
                 onClick={() => transfer(l)}
                 disabled={busy === l.id}
                 title="Hand this lead back to the admin"
@@ -154,7 +216,7 @@ export default function CallingClient({
             </div>
           ))}
         </div>
-      )}
+      ))}
     </div>
   );
 }
