@@ -26,6 +26,12 @@ export type Staff = {
   name: string;
   username: string;
   role: StaffRole;
+  /**
+   * The sales CRM's role. Carried on the session because the row it lives in
+   * is already being read to validate the token — looking it up separately
+   * cost a second round trip on every request a staff member ever made.
+   */
+  crmRole: string;
   active: boolean;
   createdAt: string;
 };
@@ -36,6 +42,7 @@ type StaffRow = {
   username: string;
   password_hash: string;
   role: string | null;
+  crm_role: string | null;
   active: boolean;
   created_at: string | Date;
 };
@@ -46,6 +53,7 @@ function toStaff(r: StaffRow): Staff {
     name: r.name,
     username: r.username,
     role: (r.role === "telecaller" ? "telecaller" : "counsellor") as StaffRole,
+    crmRole: r.crm_role ?? "sales_executive",
     active: r.active,
     createdAt: String(r.created_at),
   };

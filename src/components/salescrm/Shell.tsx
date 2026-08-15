@@ -124,7 +124,9 @@ export default function Shell({
                 <Link
                   key={n.href}
                   href={n.href}
-                  prefetch={false}
+                  // Prefetched on purpose: these nine pages are the whole app
+                  // and people move between them constantly, so paying for the
+                  // next one while they read this one makes the click instant.
                   className={`mb-0.5 block rounded-lg px-3 py-2 text-[13.5px] font-medium transition ${
                     active
                       ? "bg-[color:var(--ink-700)] text-white"

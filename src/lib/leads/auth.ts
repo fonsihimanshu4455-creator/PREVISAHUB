@@ -32,16 +32,12 @@ export async function crmSession(): Promise<CrmUser | null> {
   if (s.role === "admin") return { name: "Owner", role: "admin", scope: "" };
   if (s.role !== "staff") return null;
 
-  await ensureCrmRoles();
-  let role: CrmRole = "sales_executive";
-  if (sql) {
-    const [row] = await sql<{ crm_role: string }[]>`
-      SELECT crm_role FROM staff WHERE id = ${s.staff.id}
-    `;
-    if (row && (CRM_ROLES as readonly string[]).includes(row.crm_role)) {
-      role = row.crm_role as CrmRole;
-    }
-  }
+  // No query here on purpose: the role rides along on the session, which was
+  // already read from the row that holds it. Looking it up again put a second
+  // round trip in front of every request a staff member made.
+  const role: CrmRole = (CRM_ROLES as readonly string[]).includes(s.staff.crmRole)
+    ? (s.staff.crmRole as CrmRole)
+    : "sales_executive";
   return {
     name: s.staff.name,
     role,

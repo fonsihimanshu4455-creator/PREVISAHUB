@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import {
   createContext,
   useContext,
@@ -38,11 +39,24 @@ export function SiteContentProvider({
   // the admin always edits the freshest content (public pages use the SSR seed
   // and never gate on this).
   const [ready, setReady] = useState(false);
+  // Assume a database when we are not going to ask — the public site never
+  // saves, and the CRM has its own connection checks.
   const [storage, setStorage] = useState(false);
+  const path = usePathname() ?? "";
 
-  // Load the latest content from the server. Fall back to localStorage when no
-  // database is connected (so local edits still work per-browser).
+  // Load the latest content from the server — but only where it matters.
+  //
+  // This provider wraps the whole application, so this used to be one extra
+  // request, and one extra database read, on every page anyone opened: the
+  // public site, which already has the server-rendered content, and the CRM,
+  // which does not use website content at all. Only the editor under /admin
+  // needs a guaranteed-fresh copy, so only /admin fetches one.
+  const editing = path.startsWith("/admin");
   useEffect(() => {
+    if (!editing) {
+      setReady(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -81,7 +95,7 @@ export function SiteContentProvider({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [editing]);
 
   const save = useCallback(
     async (next: SiteContent): Promise<boolean> => {
