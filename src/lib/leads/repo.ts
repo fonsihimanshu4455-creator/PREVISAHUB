@@ -112,9 +112,11 @@ export type LeadQuery = {
    * dropdown pointless.
    *
    *   tocall   — due today, overdue, or never rung and never dated
-   *   tomorrow — dated for tomorrow
-   *   later    — dated further out
-   *   called   — already spoken to at some point, whenever it is next due
+   *   upcoming — dated for any day after today, grouped by that date on screen
+   *
+   * Relative piles like "tomorrow" read well for a day and then lie: the lead
+   * you set for tomorrow is in "to call" tomorrow, and "tomorrow" has become a
+   * different day. A date is the same fact whenever you look at it.
    */
   queue?: string;
   from?: string;
@@ -170,12 +172,8 @@ export async function listLeads(
       queue === "tocall"
         ? sql`((next_follow_up_date <> '' AND next_follow_up_date <= ${t})
                OR (next_follow_up_date = '' AND last_contact_date = ''))`
-        : queue === "tomorrow"
-        ? sql`next_follow_up_date = ${tomorrow}`
-        : queue === "later"
-        ? sql`next_follow_up_date > ${tomorrow}`
-        : queue === "called"
-        ? sql`last_contact_date <> ''`
+        : queue === "upcoming"
+        ? sql`next_follow_up_date > ${t}`
         : sql`TRUE`
     }
     AND ${from ? sql`created_at >= ${from}::date` : sql`TRUE`}
@@ -506,32 +504,28 @@ export async function coolOffStale(actor = "system"): Promise<number> {
  */
 export type CallQueueCounts = {
   tocall: number;
-  tomorrow: number;
-  later: number;
+  upcoming: number;
   called: number;
 };
 
 export async function callQueueCounts(owner?: string): Promise<CallQueueCounts> {
-  const empty = { tocall: 0, tomorrow: 0, later: 0, called: 0 };
+  const empty = { tocall: 0, upcoming: 0, called: 0 };
   if (!sql) return empty;
   await ensureLeadSchema();
   const t = today();
-  const tomorrow = addDays(t, 1);
   const scope = owner ? sql`lower(owner) = lower(${owner})` : sql`TRUE`;
   const [r] = await sql<Record<string, string>[]>`
     SELECT
       COUNT(*) FILTER (WHERE (next_follow_up_date <> '' AND next_follow_up_date <= ${t})
                           OR (next_follow_up_date = '' AND last_contact_date = '')) AS tocall,
-      COUNT(*) FILTER (WHERE next_follow_up_date = ${tomorrow})  AS tomorrow,
-      COUNT(*) FILTER (WHERE next_follow_up_date > ${tomorrow})  AS later,
+      COUNT(*) FILTER (WHERE next_follow_up_date > ${t})         AS upcoming,
       COUNT(*) FILTER (WHERE last_contact_date <> '')            AS called
     FROM leads
     WHERE ${scope} AND status <> ALL(${[...DEAD_STATUSES, WON_STATUS]})
   `;
   return {
     tocall: Number(r?.tocall ?? 0),
-    tomorrow: Number(r?.tomorrow ?? 0),
-    later: Number(r?.later ?? 0),
+    upcoming: Number(r?.upcoming ?? 0),
     called: Number(r?.called ?? 0),
   };
 }

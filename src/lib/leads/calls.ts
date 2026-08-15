@@ -20,6 +20,7 @@ export type CallLog = {
   id: string;
   leadId: string;
   leadName: string;
+  phone: string;
   caller: string;
   outcome: CallOutcome;
   notes: string;
@@ -159,11 +160,12 @@ export async function listCalls(
   const { leadId, caller, from = "", to = "", limit = 200 } = opts;
   const rows = await sql<
     {
-      id: string; lead_id: string; name: string; caller: string; outcome: string;
-      notes: string; next_action: string; duration_sec: number; called_at: Date;
+      id: string; lead_id: string; name: string; phone: string; caller: string;
+      outcome: string; notes: string; next_action: string; duration_sec: number;
+      called_at: Date;
     }[]
   >`
-    SELECT c.id, c.lead_id, l.name, c.caller, c.outcome, c.notes,
+    SELECT c.id, c.lead_id, l.name, l.phone, c.caller, c.outcome, c.notes,
            c.next_action, c.duration_sec, c.called_at
     FROM lead_calls c JOIN leads l ON l.id = c.lead_id
     WHERE ${leadId ? sql`c.lead_id = ${leadId}` : sql`TRUE`}
@@ -177,6 +179,7 @@ export async function listCalls(
     id: r.id,
     leadId: r.lead_id,
     leadName: r.name,
+    phone: r.phone,
     caller: r.caller,
     outcome: r.outcome as CallOutcome,
     notes: r.notes,

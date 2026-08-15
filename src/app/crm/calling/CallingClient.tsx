@@ -3,47 +3,28 @@
 // ---------------------------------------------------------------------------
 // The calling screen.
 //
-// A caller needs a name, a number, and one decision. Everything else — score,
-// destination, visa type, source, follow-up dates, notes — belongs to the
-// people who work the lead afterwards, and putting it here only slows down the
-// one job this screen has.
+// A caller needs a name, a number, what was said last time, and one decision.
+// Everything else — score, destination, visa type, source — belongs to the
+// people who work the lead afterwards.
 //
-// So: one list, one dropdown of five outcomes, and a way to hand a lead back
-// to the admin. Picking an outcome sets the ring-back date itself and moves
-// the lead on; the caller never types a date.
+// The piles are DATED rather than relative. "Tomorrow" reads well for a day and
+// then lies: the lead you set for tomorrow sits in "to call" tomorrow, and the
+// tab called "tomorrow" has quietly become a different day. So work booked
+// ahead is grouped under real dates, and the history is grouped under the date
+// each call was actually made.
 //
-// There is no dial button. Callers work from a phone or a headset beside the
-// screen, and a tel: link on a desktop opens whatever the browser feels like —
-// so the number is plain text, selected in one click to copy.
+// There is no dial button. Callers work from a phone beside the screen, and a
+// tel: link on a desktop opens whatever the browser feels like — so the number
+// is plain text, selected in one click to copy.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
 import CallScorecard from "@/components/salescrm/CallScorecard";
+import type { CallLog } from "@/lib/leads/calls";
 import type { CallQueueCounts } from "@/lib/leads/repo";
 import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
 
-type Tab = "tocall" | "tomorrow" | "later" | "called" | "calls";
-
-const TABS: { key: Tab; label: string; empty: string }[] = [
-  { key: "tocall", label: "To call", empty: "Nothing due. Come back tomorrow." },
-  { key: "tomorrow", label: "Tomorrow", empty: "Nothing set for tomorrow yet." },
-  { key: "later", label: "Later", empty: "Nothing booked further out." },
-  { key: "called", label: "Called", empty: "No calls logged yet." },
-];
-
-/** "in 3 days" / "tomorrow" / "2 days ago" — a date on its own means nothing. */
-function whenLabel(iso: string): string {
-  if (!iso) return "no date";
-  const day = 86400000;
-  const a = Date.parse(new Date().toISOString().slice(0, 10) + "T00:00:00Z");
-  const b = Date.parse(iso + "T00:00:00Z");
-  if (Number.isNaN(b)) return iso;
-  const d = Math.round((b - a) / day);
-  if (d === 0) return "today";
-  if (d === 1) return "tomorrow";
-  if (d === -1) return "yesterday";
-  return d < 0 ? `${-d} days ago` : `in ${d} days`;
-}
+type Tab = "tocall" | "upcoming" | "called" | "calls";
 
 const DESCRIPTION: Record<string, string> = {
   "Call Later": "ring back in 3 days",
@@ -53,11 +34,51 @@ const DESCRIPTION: Record<string, string> = {
   "No Incoming": "try again tomorrow",
 };
 
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** "Today", "Tomorrow", "Sat 16 Aug" — spelled out so it reads the same
+ *  on the server and in the browser. */
+function dateHeading(iso: string, todayIso: string): string {
+  if (!iso) return "No date yet";
+  const d = new Date(iso + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return iso;
+  const gap = Math.round(
+    (d.getTime() - Date.parse(todayIso + "T00:00:00Z")) / 86400000
+  );
+  if (gap === 0) return "Today";
+  if (gap === 1) return "Tomorrow";
+  if (gap === -1) return "Yesterday";
+  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
+
+function timeOf(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : `${String(d.getHours()).padStart(2, "0")}:${String(
+        d.getMinutes()
+      ).padStart(2, "0")}`;
+}
+
+/** Bucket by date, keeping the order the rows arrived in. */
+function groupByDate<T>(items: T[], dateOf: (t: T) => string): [string, T[]][] {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const k = dateOf(item);
+    const list = map.get(k);
+    if (list) list.push(item);
+    else map.set(k, [item]);
+  }
+  return [...map.entries()];
+}
+
 export default function CallingClient({
   initial,
 }: {
-  /** `me` is passed in rather than read from context, so the telecaller's own
-   *  page at /calling can render exactly this list without the CRM shell. */
   initial: {
     leads: Lead[];
     total: number;
@@ -69,18 +90,30 @@ export default function CallingClient({
   const [tab, setTab] = useState<Tab>("tocall");
   const [counts, setCounts] = useState(initial.counts);
   const [leads, setLeads] = useState<Lead[]>(initial.leads);
+  const [history, setHistory] = useState<CallLog[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [doneCount, setDoneCount] = useState(0);
-  const [noted, setNoted] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(false);
   const todayIso = new Date().toISOString().slice(0, 10);
+
+  const refreshCounts = useCallback(async () => {
+    const r = await fetch("/api/crm/call-queue-counts").then((x) => x.json());
+    if (r?.counts) setCounts(r.counts);
+  }, []);
 
   const openTab = useCallback(async (next: Tab) => {
     setTab(next);
     if (next === "calls") return;
     setLoading(true);
     setError("");
+    if (next === "called") {
+      const r = await fetch("/api/crm/calls?limit=300").then((x) => x.json());
+      setLoading(false);
+      if (r.error) return setError(r.error);
+      setHistory(Array.isArray(r.calls) ? r.calls : []);
+      return;
+    }
     const p = new URLSearchParams({
       bucket: "callable",
       queue: next,
@@ -93,30 +126,27 @@ export default function CallingClient({
     setLeads(Array.isArray(r.leads) ? r.leads : []);
   }, []);
 
-  /** Re-read the tab counts after anything that moves a lead between piles. */
-  const refreshCounts = useCallback(async () => {
-    const r = await fetch("/api/crm/call-queue-counts").then((x) => x.json());
-    if (r?.counts) setCounts(r.counts);
-  }, []);
+  const save = useCallback(
+    async (lead: Lead, outcome: string) => {
+      if (!outcome) return;
+      setBusy(lead.id);
+      setError("");
+      const r = await fetch("/api/crm/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id, outcome, notes: "", nextAction: "" }),
+      }).then((x) => x.json());
+      setBusy(null);
+      if (r.error) return setError(r.error);
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      setDoneCount((n) => n + 1);
+      refreshCounts();
+    },
+    [refreshCounts]
+  );
 
-  /** Log the outcome and take the lead off the list — it has a date now. */
-  const save = useCallback(async (lead: Lead, outcome: string) => {
-    if (!outcome) return;
-    setBusy(lead.id);
-    setError("");
-    const r = await fetch("/api/crm/calls", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ leadId: lead.id, outcome, notes: "", nextAction: "" }),
-    }).then((x) => x.json());
-    setBusy(null);
-    if (r.error) return setError(r.error);
-    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-    setDoneCount((n) => n + 1);
-    refreshCounts();
-  }, [refreshCounts]);
-
-  /** Add a note without leaving the row. Appended, so nothing is overwritten. */
+  /** Appended, so nothing anyone wrote before is lost. The row stays put —
+   *  a note is not an outcome and the number still needs ringing. */
   const addNote = useCallback(async (lead: Lead) => {
     const note = window.prompt(`Note for ${lead.name}:`, "");
     if (!note || !note.trim()) return;
@@ -129,180 +159,240 @@ export default function CallingClient({
     }).then((x) => x.json());
     setBusy(null);
     if (r.error) return setError(r.error);
-    // Keep the row — a note is not an outcome, the number still needs calling.
     setLeads((prev) =>
       prev.map((l) => (l.id === lead.id ? { ...l, notes: r.notes } : l))
     );
-    setNoted((prev) => new Set(prev).add(lead.id));
   }, []);
 
-  const transfer = useCallback(async (lead: Lead) => {
-    if (!window.confirm(`Send ${lead.name} back to the admin?`)) return;
-    setBusy(lead.id);
-    setError("");
-    const r = await fetch(`/api/crm/leads/${lead.id}/transfer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ note: "" }),
-    }).then((x) => x.json());
-    setBusy(null);
-    if (r.error) return setError(r.error);
-    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-    refreshCounts();
-  }, [refreshCounts]);
+  const transfer = useCallback(
+    async (lead: Lead) => {
+      if (!window.confirm(`Send ${lead.name} back to the admin?`)) return;
+      setBusy(lead.id);
+      setError("");
+      const r = await fetch(`/api/crm/leads/${lead.id}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: "" }),
+      }).then((x) => x.json());
+      setBusy(null);
+      if (r.error) return setError(r.error);
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      refreshCounts();
+    },
+    [refreshCounts]
+  );
+
+  const row = (l: Lead) => (
+    <div
+      key={l.id}
+      className={`panel flex flex-wrap items-center gap-3 p-4 transition ${
+        busy === l.id ? "opacity-50" : ""
+      }`}
+    >
+      <div className="min-w-[230px] flex-1">
+        <div className="font-display text-[16px] font-bold">{l.name}</div>
+        <div className="select-all text-[15px] tabular-nums text-[color:var(--text-muted)]">
+          {l.phone}
+        </div>
+        {l.lastOutcome && (
+          <div className="mt-0.5 text-[12px] text-[color:var(--text-faint)]">
+            last: {l.lastOutcome}
+            {l.lastContactDate
+              ? ` · ${dateHeading(l.lastContactDate, todayIso).toLowerCase()}`
+              : ""}
+          </div>
+        )}
+        {/* Everything anyone has written about this person, oldest first. */}
+        {l.notes && (
+          <p className="mt-1.5 whitespace-pre-line rounded-lg bg-surface-sunk px-2.5 py-1.5 text-[12.5px] leading-snug text-[color:var(--text-muted)]">
+            {l.notes}
+          </p>
+        )}
+      </div>
+
+      <a
+        href={`https://wa.me/${(l.whatsapp || l.phone).replace(/[^0-9]/g, "")}`}
+        target="_blank"
+        rel="noreferrer"
+        className="rounded-xl bg-[#0f7a52] px-4 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110"
+      >
+        WhatsApp
+      </a>
+
+      <select
+        defaultValue=""
+        disabled={busy === l.id}
+        onChange={(e) => {
+          save(l, e.target.value);
+          e.target.value = "";
+        }}
+        className="rounded-xl border-2 border-line-strong bg-surface px-3 py-2.5 text-[14px] font-semibold outline-none transition focus:border-accent disabled:opacity-50"
+      >
+        <option value="">What happened?</option>
+        {SIMPLE_OUTCOMES.map((o) => (
+          <option key={o} value={o}>
+            {o} — {DESCRIPTION[o]}
+          </option>
+        ))}
+      </select>
+
+      <button
+        onClick={() => addNote(l)}
+        disabled={busy === l.id}
+        className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        Note
+      </button>
+      <button
+        onClick={() => transfer(l)}
+        disabled={busy === l.id}
+        title="Hand this lead back to the admin"
+        className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
+      >
+        Transfer to admin
+      </button>
+    </div>
+  );
+
+  const heading = (label: string, count: number) => (
+    <div className="flex items-baseline gap-2 pt-2">
+      <h2 className="font-display text-[15px] font-bold">{label}</h2>
+      <span className="text-[12.5px] text-[color:var(--text-faint)]">
+        {count} {count === 1 ? "number" : "numbers"}
+      </span>
+    </div>
+  );
+
+  const TABS: { key: Tab; label: string; count?: number }[] = [
+    { key: "tocall", label: "To call", count: counts.tocall },
+    { key: "upcoming", label: "Upcoming", count: counts.upcoming },
+    { key: "called", label: "Call history", count: counts.called },
+    { key: "calls", label: "My calls" },
+  ];
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="eyebrow">Calling</p>
-          <h1 className="mt-1 font-display text-display-lg font-bold">My numbers</h1>
-          <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
-            {initial.me} · {counts.tocall} to call today
-            {doneCount > 0 && ` · ${doneCount} done today`}
-          </p>
-        </div>
+      <div>
+        <p className="eyebrow">Calling</p>
+        <h1 className="mt-1 font-display text-display-lg font-bold">My numbers</h1>
+        <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
+          {initial.me} · {counts.tocall} to call today
+          {doneCount > 0 && ` · ${doneCount} done`}
+        </p>
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b border-line">
-        {[
-          ...TABS.map((t) => [t.key, `${t.label} (${counts[t.key as keyof CallQueueCounts]})`] as const),
-          ["calls", "My calls"] as const,
-        ].map(([k, label]) => (
+        {TABS.map((t) => (
           <button
-            key={k}
-            onClick={() => openTab(k as Tab)}
+            key={t.key}
+            onClick={() => openTab(t.key)}
             className={`relative whitespace-nowrap px-3.5 py-2.5 text-[13.5px] font-semibold transition-colors ${
-              tab === k
+              tab === t.key
                 ? "text-[color:var(--text)]"
                 : "text-[color:var(--text-faint)] hover:text-[color:var(--text-muted)]"
             }`}
           >
-            {label}
+            {t.label}
+            {t.count !== undefined && ` (${t.count})`}
             <span
               className={`absolute inset-x-2 -bottom-px h-[2px] rounded-t bg-accent transition-opacity ${
-                tab === k ? "opacity-100" : "opacity-0"
+                tab === t.key ? "opacity-100" : "opacity-0"
               }`}
             />
           </button>
         ))}
       </div>
 
-      {tab === "calls" && <CallScorecard canPickCaller={initial.canPickCaller} />}
-
-      {error && tab !== "calls" && (
+      {error && (
         <p className="rounded-xl bg-[color:var(--crit-soft)] px-4 py-3 text-[13.5px] text-[color:var(--crit)]">
           {error}
         </p>
       )}
 
-      {tab !== "calls" && (loading ? (
+      {tab === "calls" && <CallScorecard canPickCaller={initial.canPickCaller} />}
+
+      {loading && (
         <div className="panel p-10 text-center text-[13.5px] text-[color:var(--text-faint)]">
           Loading…
         </div>
-      ) : leads.length === 0 ? (
-        <div className="panel p-12 text-center">
-          <p className="font-display text-[16px] font-bold">
-            {doneCount > 0 ? "All done for now 🎉" : "Nothing here"}
-          </p>
-          <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
-            {doneCount > 0
-              ? "Every number due today has been called."
-              : TABS.find((t) => t.key === tab)?.empty}
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2.5">
-          {leads.map((l) => (
-            <div
-              key={l.id}
-              className={`panel flex flex-wrap items-center gap-3 p-4 transition ${
-                busy === l.id ? "opacity-50" : ""
-              }`}
-            >
-              {/* Name and number — the only two things that matter here. */}
-              <div className="min-w-[190px] flex-1">
-                <div className="font-display text-[16px] font-bold">{l.name}</div>
-                <div className="select-all text-[15px] tabular-nums text-[color:var(--text-muted)]">
-                  {l.phone}
-                </div>
-                {/* Why this number is in front of them, and what happened last
-                    time — without it the other tabs are just a list of names. */}
-                {(tab !== "tocall" || l.lastOutcome) && (
-                  <div className="mt-0.5 text-[12px] text-[color:var(--text-faint)]">
-                    {l.nextFollowUpDate && (
-                      <span
-                        className={
-                          l.nextFollowUpDate <= todayIso
-                            ? "font-semibold text-[color:var(--warn)]"
-                            : ""
-                        }
-                      >
-                        Call {whenLabel(l.nextFollowUpDate)}
-                      </span>
-                    )}
-                    {l.lastOutcome && (
-                      <>
-                        {l.nextFollowUpDate ? " · " : ""}
-                        last: {l.lastOutcome}
-                        {l.lastContactDate ? ` (${whenLabel(l.lastContactDate)})` : ""}
-                      </>
-                    )}
-                  </div>
-                )}
+      )}
+
+      {/* Due now — one flat list, worked top to bottom. */}
+      {!loading &&
+        tab === "tocall" &&
+        (leads.length === 0 ? (
+          <div className="panel p-12 text-center">
+            <p className="font-display text-[16px] font-bold">
+              {doneCount > 0 ? "All done for now 🎉" : "Nothing due"}
+            </p>
+            <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
+              {doneCount > 0
+                ? "Every number due today has been called."
+                : counts.upcoming > 0
+                ? `Nothing to call today — ${counts.upcoming} booked for later, see Upcoming.`
+                : "The admin has not sent you any numbers yet."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2.5">{leads.map(row)}</div>
+        ))}
+
+      {/* Booked ahead — under the date they are actually booked for. */}
+      {!loading &&
+        tab === "upcoming" &&
+        (leads.length === 0 ? (
+          <div className="panel p-12 text-center text-[13.5px] text-[color:var(--text-muted)]">
+            Nothing booked ahead.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groupByDate(leads, (l) => l.nextFollowUpDate).map(([date, items]) => (
+              <div key={date} className="space-y-2.5">
+                {heading(dateHeading(date, todayIso), items.length)}
+                {items.map(row)}
               </div>
+            ))}
+          </div>
+        ))}
 
-              <a
-                href={`https://wa.me/${(l.whatsapp || l.phone).replace(/[^0-9]/g, "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-xl bg-[#0f7a52] px-4 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110"
-              >
-                WhatsApp
-              </a>
-
-              <select
-                defaultValue=""
-                disabled={busy === l.id}
-                onChange={(e) => {
-                  save(l, e.target.value);
-                  e.target.value = "";
-                }}
-                className="rounded-xl border-2 border-line-strong bg-surface px-3 py-2.5 text-[14px] font-semibold outline-none transition focus:border-accent disabled:opacity-50"
-              >
-                <option value="">What happened?</option>
-                {SIMPLE_OUTCOMES.map((o) => (
-                  <option key={o} value={o}>
-                    {o} — {DESCRIPTION[o]}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => addNote(l)}
-                disabled={busy === l.id}
-                title={l.notes ? l.notes : "Add a note about this lead"}
-                className={`rounded-xl border px-3 py-2.5 text-[13px] font-semibold transition disabled:opacity-50 ${
-                  noted.has(l.id) || l.notes
-                    ? "border-accent/50 bg-accent-soft text-accent"
-                    : "border-line-strong text-[color:var(--text-muted)] hover:border-accent hover:text-accent"
-                }`}
-              >
-                {noted.has(l.id) ? "Note saved" : "Note"}
-              </button>
-
-              <button
-                onClick={() => transfer(l)}
-                disabled={busy === l.id}
-                title="Hand this lead back to the admin"
-                className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
-              >
-                Transfer to admin
-              </button>
-            </div>
-          ))}
-        </div>
-      ))}
+      {/* What was actually called, and when. */}
+      {!loading &&
+        tab === "called" &&
+        (history.length === 0 ? (
+          <div className="panel p-12 text-center text-[13.5px] text-[color:var(--text-muted)]">
+            No calls logged yet.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {groupByDate(history, (c) => c.calledAt.slice(0, 10)).map(
+              ([date, items]) => (
+                <div key={date}>
+                  {heading(dateHeading(date, todayIso), items.length)}
+                  <div className="panel mt-2 overflow-hidden">
+                    <table className="data-table w-full text-[13.5px]">
+                      <tbody>
+                        {items.map((c) => (
+                          <tr key={c.id}>
+                            <td className="w-16 px-4 py-2.5 tabular-nums text-[color:var(--text-faint)]">
+                              {timeOf(c.calledAt)}
+                            </td>
+                            <td className="px-3 py-2.5 font-semibold">{c.leadName}</td>
+                            <td className="select-all px-3 py-2.5 tabular-nums text-[color:var(--text-muted)]">
+                              {c.phone}
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-semibold">
+                              {c.outcome}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        ))}
     </div>
   );
 }
