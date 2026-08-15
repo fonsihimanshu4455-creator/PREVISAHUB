@@ -19,9 +19,10 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
-import CallScorecard from "@/components/salescrm/CallScorecard";
+import CallScorecard, { type Drill } from "@/components/salescrm/CallScorecard";
 import type { CallLog } from "@/lib/leads/calls";
 import type { CallQueueCounts } from "@/lib/leads/repo";
+import { dayLabel, dayLabelFull, timeOf, todayIso } from "@/lib/leads/dates";
 import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
 
 type Tab = "tocall" | "upcoming" | "transferred" | "called" | "calls";
@@ -33,36 +34,6 @@ const DESCRIPTION: Record<string, string> = {
   "Switched Off": "try again tomorrow",
   "No Incoming": "try again tomorrow",
 };
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-/** "Today", "Tomorrow", "Sat 16 Aug" — spelled out so it reads the same
- *  on the server and in the browser. */
-function dateHeading(iso: string, todayIso: string): string {
-  if (!iso) return "No date yet";
-  const d = new Date(iso + "T00:00:00Z");
-  if (Number.isNaN(d.getTime())) return iso;
-  const gap = Math.round(
-    (d.getTime() - Date.parse(todayIso + "T00:00:00Z")) / 86400000
-  );
-  if (gap === 0) return "Today";
-  if (gap === 1) return "Tomorrow";
-  if (gap === -1) return "Yesterday";
-  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
-
-function timeOf(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : `${String(d.getHours()).padStart(2, "0")}:${String(
-        d.getMinutes()
-      ).padStart(2, "0")}`;
-}
 
 /** Bucket by date, keeping the order the rows arrived in. */
 function groupByDate<T>(items: T[], dateOf: (t: T) => string): [string, T[]][] {
@@ -91,29 +62,51 @@ export default function CallingClient({
   const [counts, setCounts] = useState(initial.counts);
   const [leads, setLeads] = useState<Lead[]>(initial.leads);
   const [history, setHistory] = useState<CallLog[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [doneCount, setDoneCount] = useState(0);
-  const todayIso = new Date().toISOString().slice(0, 10);
+  /** Set when the reader arrived at the history from a figure on the scorecard.
+   *  Kept beside the rows as a chip so it is never a mystery why the list is
+   *  short, and removable in one click. */
+  const [drill, setDrill] = useState<Drill | null>(null);
+  const today = todayIso();
 
   const refreshCounts = useCallback(async () => {
     const r = await fetch("/api/crm/call-queue-counts").then((x) => x.json());
     if (r?.counts) setCounts(r.counts);
   }, []);
 
+  /** The call history, optionally narrowed to what a scorecard figure counted.
+   *  The dates go to the server so the range is exact; the outcome is matched
+   *  here, because a day never has enough calls for that to be worth a query. */
+  const loadHistory = useCallback(async (d: Drill | null) => {
+    setLoading(true);
+    setError("");
+    const p = new URLSearchParams({ limit: "500" });
+    if (d?.date) {
+      p.set("from", d.date);
+      p.set("to", d.date);
+    } else if (d?.from) {
+      p.set("from", d.from);
+      if (d.to) p.set("to", d.to);
+    }
+    if (d?.caller) p.set("caller", d.caller);
+    const r = await fetch(`/api/crm/calls?${p}`).then((x) => x.json());
+    setLoading(false);
+    if (r.error) return setError(r.error);
+    setHistory(Array.isArray(r.calls) ? r.calls : []);
+    setHistoryLoaded(true);
+  }, []);
+
   const openTab = useCallback(async (next: Tab) => {
     setTab(next);
     if (next === "calls") return;
+    setDrill(null);
+    if (next === "called") return loadHistory(null);
     setLoading(true);
     setError("");
-    if (next === "called") {
-      const r = await fetch("/api/crm/calls?limit=300").then((x) => x.json());
-      setLoading(false);
-      if (r.error) return setError(r.error);
-      setHistory(Array.isArray(r.calls) ? r.calls : []);
-      return;
-    }
     const p = new URLSearchParams({ bucket: "callable", order: "calling", limit: "300" });
     if (next === "transferred") {
       // A caller wants the ones they sent back; the admin wants the ones
@@ -127,7 +120,17 @@ export default function CallingClient({
     setLoading(false);
     if (r.error) return setError(r.error);
     setLeads(Array.isArray(r.leads) ? r.leads : []);
-  }, []);
+  }, [loadHistory]);
+
+  /** A figure on the scorecard was clicked: show the calls it counted. */
+  const openDrill = useCallback(
+    (d: Drill) => {
+      setTab("called");
+      setDrill(d);
+      loadHistory(d);
+    },
+    [loadHistory]
+  );
 
   const save = useCallback(
     async (lead: Lead, outcome: string) => {
@@ -201,7 +204,7 @@ export default function CallingClient({
           <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--warn)]">
             Transferred by {l.transferredFrom}
             {l.transferredAt
-              ? ` · ${dateHeading(l.transferredAt.slice(0, 10), todayIso).toLowerCase()}`
+              ? ` · ${dayLabel(l.transferredAt.slice(0, 10), today).toLowerCase()}`
               : ""}
           </div>
         )}
@@ -209,7 +212,7 @@ export default function CallingClient({
           <div className="mt-0.5 text-[12px] text-[color:var(--text-faint)]">
             last: {l.lastOutcome}
             {l.lastContactDate
-              ? ` · ${dateHeading(l.lastContactDate, todayIso).toLowerCase()}`
+              ? ` · ${dayLabel(l.lastContactDate, today).toLowerCase()}`
               : ""}
           </div>
         )}
@@ -269,14 +272,29 @@ export default function CallingClient({
     </div>
   );
 
-  const heading = (label: string, count: number) => (
-    <div className="flex items-baseline gap-2 pt-2">
-      <h2 className="font-display text-[15px] font-bold">{label}</h2>
-      <span className="text-[12.5px] text-[color:var(--text-faint)]">
-        {count} {count === 1 ? "number" : "numbers"}
-      </span>
-    </div>
-  );
+  /** "Today · Sat 15 Aug — 6 numbers". The familiar word tells you where you
+   *  are; the date beside it settles which day that actually was. */
+  const heading = (iso: string, count: number, noun = "number") => {
+    const { label, detail } = dayLabelFull(iso, today);
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-2 pt-2">
+        <h2 className="font-display text-[15px] font-bold">
+          {iso ? label : "No date yet"}
+        </h2>
+        {detail && (
+          <span className="text-[13px] text-[color:var(--text-muted)]">{detail}</span>
+        )}
+        <span className="text-[12.5px] text-[color:var(--text-faint)]">
+          · {count} {count === 1 ? noun : `${noun}s`}
+        </span>
+      </div>
+    );
+  };
+
+  // The dates were asked of the server; only the outcome is narrowed here.
+  const shownHistory = drill?.outcome
+    ? history.filter((c) => c.outcome === drill.outcome)
+    : history;
 
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: "tocall", label: "To call", count: counts.tocall },
@@ -286,7 +304,11 @@ export default function CallingClient({
       label: initial.canPickCaller ? "Transferred in" : "I transferred",
       count: counts.transferred,
     },
-    { key: "called", label: "Call history", count: counts.called },
+    // Deliberately not counts.called: that counts leads that have been rung at
+    // least once, while this tab lists calls. A lead rung three times is one
+    // there and three here, so the tab showed a number its own list contradicted.
+    // Once the history is loaded the tab says how many rows are actually below it.
+    { key: "called", label: "Call history", count: historyLoaded ? shownHistory.length : undefined },
     { key: "calls", label: "My calls" },
   ];
 
@@ -329,7 +351,14 @@ export default function CallingClient({
         </p>
       )}
 
-      {tab === "calls" && <CallScorecard canPickCaller={initial.canPickCaller} />}
+      {tab === "calls" && (
+        <CallScorecard
+          canPickCaller={initial.canPickCaller}
+          transferred={counts.transferred}
+          onDrill={openDrill}
+          onOpenTransfers={() => openTab("transferred")}
+        />
+      )}
 
       {loading && (
         <div className="panel p-10 text-center text-[13.5px] text-[color:var(--text-faint)]">
@@ -388,7 +417,7 @@ export default function CallingClient({
           <div className="space-y-4">
             {groupByDate(leads, (l) => l.nextFollowUpDate).map(([date, items]) => (
               <div key={date} className="space-y-2.5">
-                {heading(dateHeading(date, todayIso), items.length)}
+                {heading(date, items.length)}
                 {items.map(row)}
               </div>
             ))}
@@ -396,18 +425,41 @@ export default function CallingClient({
         ))}
 
       {/* What was actually called, and when. */}
-      {!loading &&
-        tab === "called" &&
-        (history.length === 0 ? (
-          <div className="panel p-12 text-center text-[13.5px] text-[color:var(--text-muted)]">
-            No calls logged yet.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {groupByDate(history, (c) => c.calledAt.slice(0, 10)).map(
+      {!loading && tab === "called" && (
+        <div className="space-y-4">
+          {drill && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[12.5px] text-[color:var(--text-muted)]">
+                Showing
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full bg-surface-sunk px-3 py-1.5 text-[12.5px] font-semibold">
+                {drill.label}
+                <button
+                  onClick={() => openTab("called")}
+                  title="Show every call again"
+                  className="text-[color:var(--text-faint)] transition hover:text-[color:var(--crit)]"
+                >
+                  ✕
+                </button>
+              </span>
+              <button
+                onClick={() => openTab("calls")}
+                className="text-[12.5px] font-semibold text-accent hover:underline"
+              >
+                ← Back to my calls
+              </button>
+            </div>
+          )}
+
+          {shownHistory.length === 0 ? (
+            <div className="panel p-12 text-center text-[13.5px] text-[color:var(--text-muted)]">
+              {drill ? "No calls match that." : "No calls logged yet."}
+            </div>
+          ) : (
+            groupByDate(shownHistory, (c) => c.calledAt.slice(0, 10)).map(
               ([date, items]) => (
                 <div key={date}>
-                  {heading(dateHeading(date, todayIso), items.length)}
+                  {heading(date, items.length, "call")}
                   <div className="panel mt-2 overflow-hidden">
                     <table className="data-table w-full text-[13.5px]">
                       <tbody>
@@ -430,9 +482,10 @@ export default function CallingClient({
                   </div>
                 </div>
               )
-            )}
-          </div>
-        ))}
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }

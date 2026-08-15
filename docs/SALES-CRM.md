@@ -190,7 +190,8 @@ leads, never the whole book.
 | `/crm` | dashboard — KPIs by group, charts, employee table |
 | `/crm/leads` | the list: search + seven filters, paged |
 | `/crm/leads/[id]` | profile: record, score breakdown, timeline |
-| `/crm/calling` | the call queue — overdue, today, never called |
+| `/crm/calling` | the caller's five tabs: to call, upcoming, transferred, call history, my calls (a scorecard whose every figure opens the calls behind it) |
+| `/calling` | the same screen at the telecaller's own login |
 | `/crm/followups` | the five queues |
 | `/crm/pipeline` | Kanban, drag to move |
 | `/crm/appointments` | consultation diary |
