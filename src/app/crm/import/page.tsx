@@ -17,6 +17,9 @@ type Preview = {
   headers: string[];
   mapped: Record<string, string>;
   unmapped: string[];
+  notes: string[];
+  unnamedCount: number;
+  mergedCount: number;
   validCount: number;
   errorCount: number;
   duplicateCount: number;
@@ -208,7 +211,7 @@ export default function ImportLeadsPage() {
         <>
           <div className="panel p-5">
             <h2 className="font-display text-[15px] font-bold">What the CRM found</h2>
-            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
               <div>
                 <div className="font-display text-2xl font-extrabold tabular-nums">{preview.total}</div>
                 <div className="text-[12px] text-[color:var(--text-muted)]">rows in the file</div>
@@ -226,12 +229,36 @@ export default function ImportLeadsPage() {
                 <div className="text-[12px] text-[color:var(--text-muted)]">already on the board</div>
               </div>
               <div>
+                <div className="font-display text-2xl font-extrabold tabular-nums text-[color:var(--info)]">
+                  {preview.mergedCount}
+                </div>
+                <div className="text-[12px] text-[color:var(--text-muted)]">
+                  same person, merged
+                </div>
+              </div>
+              <div>
                 <div className="font-display text-2xl font-extrabold tabular-nums text-[color:var(--crit)]">
                   {preview.errorCount}
                 </div>
                 <div className="text-[12px] text-[color:var(--text-muted)]">will be skipped</div>
               </div>
             </div>
+
+            {preview.unnamedCount > 0 && (
+              <p className="mt-4 rounded-lg bg-[color:var(--warn-soft)] px-3 py-2 text-[13px] text-[color:var(--warn)]">
+                {preview.unnamedCount} row{preview.unnamedCount === 1 ? " has" : "s have"} no
+                name in the sheet. They will be saved as{" "}
+                <b>Lead &lt;number&gt;</b> so the phone number is not lost — the
+                caller asks the name on the first call and edits it in.
+              </p>
+            )}
+            {preview.notes?.length > 0 && (
+              <ul className="mt-3 space-y-0.5 text-[12.5px] text-[color:var(--text-muted)]">
+                {preview.notes.map((n) => (
+                  <li key={n}>· {n}</li>
+                ))}
+              </ul>
+            )}
 
             <h3 className="mt-5 text-[12px] font-bold uppercase tracking-wide text-[color:var(--text-faint)]">
               Columns it recognised
@@ -273,7 +300,7 @@ export default function ImportLeadsPage() {
               <table className="data-table w-full text-[13px]">
                 <thead>
                   <tr>
-                    <th className="px-4 py-2 text-left">#</th>
+                    <th className="px-4 py-2 text-left">Tab / row</th>
                     <th className="px-3 py-2 text-left">Name</th>
                     <th className="px-3 py-2 text-left">Mobile</th>
                     <th className="px-3 py-2 text-left">Destination</th>
@@ -285,7 +312,9 @@ export default function ImportLeadsPage() {
                 <tbody>
                   {preview.rows.map((r) => (
                     <tr key={r.row} className={r.errors.length ? "opacity-50" : ""}>
-                      <td className="px-4 py-2 tabular-nums text-[color:var(--text-faint)]">{r.row}</td>
+                      <td className="px-4 py-2 text-[11.5px] text-[color:var(--text-faint)]">
+                        {r.sheet} <span className="tabular-nums">{r.row}</span>
+                      </td>
                       <td className="px-3 py-2 font-medium">{r.name || "—"}</td>
                       <td className="px-3 py-2 tabular-nums">{r.phone || "—"}</td>
                       <td className="px-3 py-2 text-[color:var(--text-muted)]">{r.destination || "—"}</td>
@@ -315,7 +344,9 @@ export default function ImportLeadsPage() {
               <ul className="mt-2 space-y-1 text-[13px] text-[color:var(--text-muted)]">
                 {preview.problems.map((p) => (
                   <li key={p.row}>
-                    <span className="tabular-nums text-[color:var(--text-faint)]">Row {p.row}</span>{" "}
+                    <span className="text-[color:var(--text-faint)]">
+                      {p.sheet} row <span className="tabular-nums">{p.row}</span>
+                    </span>{" "}
                     {p.name || "(no name)"} — {p.errors.join("; ")}
                   </li>
                 ))}

@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { sql } from "../db";
-import { matchOption, normaliseHeader, readGrid } from "../import";
+import { matchOption, normaliseHeader, readSheets } from "../import";
 import { ensureLeadSchema } from "./schema";
 import {
   DESTINATIONS, LEAD_SOURCES, LEAD_STATUSES, LeadSource, LeadStatus,
@@ -18,6 +18,8 @@ import {
 } from "./types";
 
 export type LeadImportRow = {
+  /** Which tab it came from — a workbook usually has several. */
+  sheet: string;
   row: number;
   name: string;
   phone: string;
@@ -40,12 +42,36 @@ export type LeadImportRow = {
   warnings: string[];
 };
 
+/**
+ * Find the row the column names are actually on.
+ *
+ * Spreadsheets that people keep by hand start with a banner — "ALL STUDENTS
+ * DATA 25 july" merged across the top — and the real header sits underneath
+ * it. Taking row 1 on faith reads the banner as the column names and throws
+ * the whole file away.
+ */
+function findHeaderRow(grid: string[][]): number {
+  const limit = Math.min(grid.length, 12);
+  let best = -1;
+  let bestScore = 0;
+  for (let r = 0; r < limit; r++) {
+    const score = grid[r].filter((c) => fieldFor(c)).length;
+    // A banner row repeats one phrase across the merge, so it maps at most one
+    // field; a real header maps several.
+    if (score >= 2 && score > bestScore) {
+      best = r;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 const FIELD_ALIASES: Record<string, string[]> = {
   name: ["name", "leadname", "clientname", "studentname", "fullname", "student", "client"],
   phone: ["phone", "phoneno", "phonenumber", "mobile", "mobileno", "mob", "contact", "contactno", "number"],
   whatsapp: ["whatsapp", "whatsappno", "whatsappnumber", "wa"],
   email: ["email", "emailid", "mail", "emailaddress"],
-  city: ["city", "town", "location", "place", "district"],
+  city: ["city", "town", "location", "place", "district", "address", "area"],
   destination: ["country", "destination", "preferredcountry", "countrypreference", "interestedcountry"],
   visaType: ["visa", "visatype", "category", "service", "interest", "requirement"],
   source: ["source", "leadsource", "campaign", "channel", "reference", "from"],
@@ -55,7 +81,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   occupation: ["occupation", "job", "work", "profession"],
   budget: ["budget", "fee", "fees", "amount", "package"],
   lastContactDate: ["lastcontact", "lastcontacted", "lastcalldate", "date", "calldate", "lastcalled"],
-  notes: ["notes", "note", "remark", "remarks", "comment", "comments", "feedback"],
+  notes: ["notes", "note", "remark", "remarks", "comment", "comments", "feedback",
+          "followups", "followup", "detail", "details", "description"],
 };
 
 function fieldFor(header: string): string | null {
@@ -125,10 +152,16 @@ export type ParsedLeadImport = {
   headers: string[];
   mapped: Record<string, string>;
   unmapped: string[];
+  /** Per-tab remarks: what was read, what was skipped and why. */
+  notes: string[];
   rows: LeadImportRow[];
   validCount: number;
   errorCount: number;
   duplicateCount: number;
+  /** Rows folded into an earlier row for the same number. */
+  mergedCount: number;
+  /** Rows whose name was blank and got a placeholder. */
+  unnamedCount: number;
 };
 
 export type ImportDefaults = {
@@ -153,48 +186,14 @@ export async function parseLeadImport(
   filename: string,
   defaults: ImportDefaults = {}
 ): Promise<ParsedLeadImport | { error: string }> {
-  let grid: string[][];
+  let sheets: { name: string; grid: string[][] }[];
   try {
-    grid = await readGrid(buf, filename);
+    sheets = await readSheets(buf, filename);
   } catch (e) {
     return {
       error:
         "Could not read that file. Save it as .xlsx or .csv and try again. " +
         String(e instanceof Error ? e.message : e),
-    };
-  }
-
-  if (grid.length < 2) {
-    return { error: "The file needs a header row and at least one lead below it." };
-  }
-
-  const headers = grid[0];
-  const mapped: Record<string, string> = {};
-  const unmapped: string[] = [];
-  const colToField = new Map<number, string>();
-
-  headers.forEach((h, i) => {
-    const f = fieldFor(h);
-    if (f && !Object.values(mapped).includes(f)) {
-      mapped[h] = f;
-      colToField.set(i, f);
-    } else if (h.trim()) unmapped.push(h);
-  });
-
-  if (!Object.values(mapped).includes("name")) {
-    return {
-      error:
-        `No Name column found. The columns in your file are: ${headers
-          .filter((h) => h.trim())
-          .join(", ")}. Rename one to "Name" and add a "Phone" column.`,
-    };
-  }
-  if (!Object.values(mapped).includes("phone")) {
-    return {
-      error:
-        `No Phone column found. The columns in your file are: ${headers
-          .filter((h) => h.trim())
-          .join(", ")}. Rename one to "Phone" or "Mobile".`,
     };
   }
 
@@ -215,86 +214,212 @@ export async function parseLeadImport(
     matchOption(defaults.status ?? "", LEAD_STATUSES) ?? "Cold Lead";
 
   const rows: LeadImportRow[] = [];
-  const seen = new Map<string, number>();
+  const notes: string[] = [];
+  const headers: string[] = [];
+  const mapped: Record<string, string> = {};
+  const unmapped: string[] = [];
+  // Keyed by phone so a person listed on two tabs becomes one lead carrying
+  // both tabs' information, rather than the second, often richer, row being
+  // thrown away — the walk-ins tab is usually the one with the country on it.
+  const seen = new Map<string, LeadImportRow>();
   let duplicateCount = 0;
+  let mergedCount = 0;
+  let unnamedCount = 0;
+  // A tab with no header of its own borrows the last one we understood — the
+  // columns are laid out the same way, someone just did not type the titles.
+  let lastLayout: Map<number, string> | null = null;
 
-  for (let r = 1; r < grid.length; r++) {
-    const raw = grid[r];
-    if (raw.every((c) => !String(c ?? "").trim())) continue; // blank row
-    const get = (field: string): string => {
-      for (const [i, f] of colToField) if (f === field) return String(raw[i] ?? "").trim();
-      return "";
+  for (const sheet of sheets) {
+    const grid = sheet.grid;
+    if (grid.length === 0) continue;
+
+    const headerRow = findHeaderRow(grid);
+    let colToField: Map<number, string>;
+    let startRow: number;
+
+    if (headerRow >= 0) {
+      colToField = new Map();
+      grid[headerRow].forEach((h, i) => {
+        const f = fieldFor(h);
+        if (!f) {
+          if (h.trim() && !unmapped.includes(h) && !mapped[h]) unmapped.push(h);
+          return;
+        }
+        // A sheet often carries two columns of free text — NOTES and FOLLOW
+        // UPS — and the second one is where the useful history usually is.
+        // Both are kept and joined rather than the later one being dropped.
+        const taken = [...colToField.values()].includes(f);
+        if (!taken || f === "notes") {
+          colToField.set(i, f);
+          if (!headers.includes(h)) headers.push(h);
+          mapped[h] = f;
+        } else if (h.trim() && !unmapped.includes(h) && !mapped[h]) {
+          unmapped.push(h);
+        }
+      });
+      startRow = headerRow + 1;
+      lastLayout = colToField;
+    } else if (lastLayout) {
+      colToField = lastLayout;
+      startRow = 0;
+      notes.push(
+        `“${sheet.name}” has no header row — read using the columns from the previous tab.`
+      );
+    } else {
+      notes.push(`“${sheet.name}” has no recognisable columns — skipped.`);
+      continue;
+    }
+
+    if (![...colToField.values()].includes("name") &&
+        ![...colToField.values()].includes("phone")) {
+      notes.push(`“${sheet.name}” has neither a name nor a phone column — skipped.`);
+      continue;
+    }
+
+    let usedFromSheet = 0;
+    for (let r = startRow; r < grid.length; r++) {
+      const raw = grid[r];
+      if (raw.every((c) => !String(c ?? "").trim())) continue; // blank row
+      const get = (field: string): string => {
+        const parts: string[] = [];
+        for (const [i, f] of colToField) {
+          if (f !== field) continue;
+          const v = String(raw[i] ?? "").trim();
+          if (v) parts.push(v);
+          // Only free text is worth joining; everything else takes the first
+          // column that has a value.
+          if (parts.length && field !== "notes") break;
+        }
+        return parts.join(" · ");
+      };
+
+      const errors: string[] = [];
+      const warnings: string[] = [];
+      let name = get("name");
+      const phone = get("phone");
+      const key = phoneKey(phone);
+
+      if (!phone) errors.push("Phone is missing");
+      else if (key.length < 10) errors.push(`“${phone}” is not a full phone number`);
+      else if (existing.has(key)) {
+        // Already a live lead: leave it alone rather than quietly rewriting a
+        // record somebody may have been working.
+        errors.push(`Already on the board as ${existing.get(key)}`);
+        duplicateCount++;
+      }
+
+      // A missing name is not a reason to lose a real phone number. It gets a
+      // placeholder that is obviously a placeholder — inventing a person's
+      // name would have a caller greet a stranger by the wrong one.
+      if (!name) {
+        name = key ? `Lead ${key}` : "";
+        if (name) {
+          unnamedCount++;
+          warnings.push("No name in the sheet — ask on the first call");
+        } else {
+          errors.push("No name and no phone");
+        }
+      }
+
+      const destRaw = get("destination");
+      const destination = matchLoose(destRaw, DESTINATIONS) ?? destRaw ?? "";
+
+      const visaRaw = get("visaType");
+      const visaType = matchLoose(visaRaw, VISA_TYPES) ?? "Other";
+
+      const sourceRaw = get("source");
+      const source = matchLoose(sourceRaw, LEAD_SOURCES) ?? defaultSource;
+
+      const statusRaw = get("status");
+      const status = matchLoose(statusRaw, LEAD_STATUSES) ?? defaultStatus;
+
+      const budgetRaw = get("budget").replace(/[^0-9.]/g, "");
+      const budget = budgetRaw ? Number(budgetRaw) : null;
+
+      const parsed: LeadImportRow = {
+        sheet: sheet.name,
+        row: r + 1,
+        name,
+        phone,
+        whatsapp: get("whatsapp") || phone,
+        email: get("email"),
+        city: get("city"),
+        destination,
+        visaType,
+        source,
+        status,
+        owner: get("owner") || defaults.owner || "",
+        education: get("education"),
+        occupation: get("occupation"),
+        budget: budget !== null && Number.isFinite(budget) ? budget : null,
+        lastContactDate: asDate(get("lastContactDate")),
+        notes: get("notes"),
+        errors,
+        warnings,
+      };
+
+      const earlier = key.length >= 10 ? seen.get(key) : undefined;
+      if (earlier && errors.length === 0) {
+        mergeInto(earlier, parsed);
+        parsed.errors.push(
+          `Same number as ${earlier.sheet} row ${earlier.row} — merged into it`
+        );
+        mergedCount++;
+      } else if (errors.length === 0) {
+        seen.set(key, parsed);
+      }
+      rows.push(parsed);
+      usedFromSheet++;
+    }
+    if (usedFromSheet > 0) {
+      notes.push(`“${sheet.name}” — ${usedFromSheet} row(s) read.`);
+    }
+  }
+
+  if (rows.length === 0) {
+    return {
+      error:
+        "No lead rows found. The file needs a row of column names with at " +
+        "least Name and Phone (or Mobile) on it, and rows underneath.",
     };
-
-    const errors: string[] = [];
-    const warnings: string[] = [];
-    const name = get("name");
-    const phone = get("phone");
-    const key = phoneKey(phone);
-
-    if (!name) errors.push("Name is missing");
-    if (!phone) errors.push("Phone is missing");
-    else if (key.length < 10) errors.push(`"${phone}" is not a full phone number`);
-    else if (seen.has(key)) {
-      errors.push(`Same number as row ${seen.get(key)} in this file`);
-      duplicateCount++;
-    } else if (existing.has(key)) {
-      errors.push(`Already on the board as ${existing.get(key)}`);
-      duplicateCount++;
-    } else seen.set(key, r + 1);
-
-    const destRaw = get("destination");
-    const destination = matchLoose(destRaw, DESTINATIONS) ?? destRaw ?? "";
-
-    const visaRaw = get("visaType");
-    const visaType = matchLoose(visaRaw, VISA_TYPES) ?? "Other";
-    if (visaRaw && !matchLoose(visaRaw, VISA_TYPES)) {
-      warnings.push(`Visa type "${visaRaw}" not recognised — filed as Other`);
-    }
-
-    const sourceRaw = get("source");
-    const source = matchLoose(sourceRaw, LEAD_SOURCES) ?? defaultSource;
-
-    const statusRaw = get("status");
-    const status = matchLoose(statusRaw, LEAD_STATUSES) ?? defaultStatus;
-    if (statusRaw && !matchLoose(statusRaw, LEAD_STATUSES)) {
-      warnings.push(`Status "${statusRaw}" not recognised — filed as ${defaultStatus}`);
-    }
-
-    const budgetRaw = get("budget").replace(/[^0-9.]/g, "");
-    const budget = budgetRaw ? Number(budgetRaw) : null;
-
-    rows.push({
-      row: r + 1,
-      name,
-      phone,
-      whatsapp: get("whatsapp") || phone,
-      email: get("email"),
-      city: get("city"),
-      destination,
-      visaType,
-      source,
-      status,
-      owner: get("owner") || defaults.owner || "",
-      education: get("education"),
-      occupation: get("occupation"),
-      budget: budget !== null && Number.isFinite(budget) ? budget : null,
-      lastContactDate: asDate(get("lastContactDate")),
-      notes: get("notes"),
-      errors,
-      warnings,
-    });
   }
 
   return {
     headers,
     mapped,
     unmapped,
+    notes,
     rows,
     validCount: rows.filter((r) => r.errors.length === 0).length,
     errorCount: rows.filter((r) => r.errors.length > 0).length,
     duplicateCount,
+    mergedCount,
+    unnamedCount,
   };
+}
+
+/**
+ * Fold a second row for the same person into the first: fill anything the
+ * first left blank, and keep both lots of notes.
+ */
+function mergeInto(target: LeadImportRow, extra: LeadImportRow): void {
+  const fields = [
+    "email", "city", "destination", "owner", "education", "occupation",
+    "lastContactDate", "whatsapp",
+  ] as const;
+  for (const f of fields) {
+    if (!target[f] && extra[f]) (target as Record<string, unknown>)[f] = extra[f];
+  }
+  if (target.name.startsWith("Lead ") && !extra.name.startsWith("Lead ")) {
+    target.name = extra.name;
+  }
+  if (target.visaType === "Other" && extra.visaType !== "Other") {
+    target.visaType = extra.visaType;
+  }
+  if (target.budget === null && extra.budget !== null) target.budget = extra.budget;
+  if (extra.notes && !target.notes.includes(extra.notes)) {
+    target.notes = [target.notes, extra.notes].filter(Boolean).join(" · ");
+  }
 }
 
 /**

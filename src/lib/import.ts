@@ -100,24 +100,43 @@ function splitCsvLine(line: string): string[] {
 }
 
 export async function readGrid(buf: Buffer, filename: string): Promise<string[][]> {
+  const sheets = await readSheets(buf, filename);
+  return sheets[0]?.grid ?? [];
+}
+
+export type Sheet = { name: string; grid: string[][] };
+
+/**
+ * Every sheet in the workbook, not just the first.
+ *
+ * Real files keep the walk-ins on one tab and last month on another, and
+ * reading only the first one loses them silently — which is the worst possible
+ * way to lose them.
+ */
+export async function readSheets(buf: Buffer, filename: string): Promise<Sheet[]> {
   if (/\.csv$/i.test(filename)) {
     const text = buf.toString("utf8").replace(/^﻿/, "");
-    return text
-      .split(/\r?\n/)
-      .filter((l) => l.trim() !== "")
-      .map(splitCsvLine);
+    return [
+      {
+        name: "CSV",
+        grid: text
+          .split(/\r?\n/)
+          .filter((l) => l.trim() !== "")
+          .map(splitCsvLine),
+      },
+    ];
   }
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf as unknown as ArrayBuffer);
-  const ws = wb.worksheets[0];
-  if (!ws) return [];
-  const grid: string[][] = [];
-  ws.eachRow((row) => {
-    const values = row.values as unknown[];
-    // ExcelJS row.values is 1-indexed with a leading hole.
-    grid.push(values.slice(1).map(cellText));
+  return wb.worksheets.map((ws) => {
+    const grid: string[][] = [];
+    ws.eachRow((row) => {
+      const values = row.values as unknown[];
+      // ExcelJS row.values is 1-indexed with a leading hole.
+      grid.push(values.slice(1).map(cellText));
+    });
+    return { name: ws.name, grid };
   });
-  return grid;
 }
 
 export type ParsedImport = {
