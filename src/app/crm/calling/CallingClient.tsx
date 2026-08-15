@@ -13,9 +13,10 @@
 // ahead is grouped under real dates, and the history is grouped under the date
 // each call was actually made.
 //
-// There is no dial button. Callers work from a phone beside the screen, and a
-// tel: link on a desktop opens whatever the browser feels like — so the number
-// is plain text, selected in one click to copy.
+// There is no dial button and no WhatsApp button. Callers work from a phone
+// beside the screen, and a tel:/wa.me link on a desktop opens whatever the
+// browser feels like — so the number is plain text, selected in one click to
+// copy, and the row carries nothing but the one decision.
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
@@ -217,15 +218,6 @@ export default function CallingClient({
           </div>
         )}
       </div>
-
-      <a
-        href={`https://wa.me/${(l.whatsapp || l.phone).replace(/[^0-9]/g, "")}`}
-        target="_blank"
-        rel="noreferrer"
-        className="rounded-xl bg-[#0f7a52] px-4 py-2.5 text-[14px] font-semibold text-white transition hover:brightness-110"
-      >
-        WhatsApp
-      </a>
 
       <select
         defaultValue=""
