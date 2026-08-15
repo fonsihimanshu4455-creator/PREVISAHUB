@@ -21,5 +21,5 @@ export default async function CallingPage() {
     limit: 300,
   });
 
-  return <CallingClient initial={{ leads, total }} />;
+  return <CallingClient initial={{ leads, total, me: user.name }} />;
 }

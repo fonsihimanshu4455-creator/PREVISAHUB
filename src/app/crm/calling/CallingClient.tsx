@@ -14,7 +14,6 @@
 // ---------------------------------------------------------------------------
 
 import { useCallback, useState } from "react";
-import { useCrm } from "@/components/salescrm/Shell";
 import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
 
 const DESCRIPTION: Record<string, string> = {
@@ -28,9 +27,10 @@ const DESCRIPTION: Record<string, string> = {
 export default function CallingClient({
   initial,
 }: {
-  initial: { leads: Lead[]; total: number };
+  /** `me` is passed in rather than read from context, so the telecaller's own
+   *  page at /calling can render exactly this list without the CRM shell. */
+  initial: { leads: Lead[]; total: number; me: string };
 }) {
-  const { user } = useCrm();
   const [leads, setLeads] = useState<Lead[]>(initial.leads);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -73,7 +73,7 @@ export default function CallingClient({
           <p className="eyebrow">Calling</p>
           <h1 className="mt-1 font-display text-display-lg font-bold">My numbers</h1>
           <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
-            {user.name} · {leads.length} to call
+            {initial.me} · {leads.length} to call
             {doneCount > 0 && ` · ${doneCount} done today`}
           </p>
         </div>
