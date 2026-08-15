@@ -430,6 +430,9 @@ export type Lead = {
   /** The caller who handed this lead back to the admin, if anyone did. */
   transferredFrom: string;
   transferredAt: string;
+  /** Why they handed it back — the caller writes this at the moment of
+   *  transfer, and it is the first thing the admin reads about the lead. */
+  transferNote: string;
   updatedAt: string;
 };
 
@@ -467,4 +470,5 @@ export const EMPTY_LEAD: Omit<Lead, "id" | "createdAt" | "updatedAt"> = {
   handoverStudentId: "",
   transferredFrom: "",
   transferredAt: "",
+  transferNote: "",
 };

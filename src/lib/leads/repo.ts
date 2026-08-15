@@ -27,7 +27,7 @@ type Row = {
   next_follow_up_date: string; next_follow_up_time: string;
   last_contact_date: string; last_outcome: string; lost_reason: string;
   notes: string; handover_student_id: string;
-  transferred_from: string; transferred_at: Date | null;
+  transferred_from: string; transferred_at: Date | null; transfer_note: string;
 };
 
 function toLead(r: Row): Lead {
@@ -68,6 +68,7 @@ function toLead(r: Row): Lead {
     handoverStudentId: r.handover_student_id,
     transferredFrom: r.transferred_from ?? "",
     transferredAt: r.transferred_at ? new Date(r.transferred_at).toISOString() : "",
+    transferNote: r.transfer_note ?? "",
   };
 }
 
@@ -76,7 +77,8 @@ const COLUMNS = `id, created_at, updated_at, source, name, phone, whatsapp,
   current_visa, previous_refusal, travel_history, education, work_experience,
   english_test, budget, expected_application, owner, score, status, priority,
   next_follow_up_date, next_follow_up_time, last_contact_date, last_outcome,
-  lost_reason, notes, handover_student_id, transferred_from, transferred_at`;
+  lost_reason, notes, handover_student_id, transferred_from, transferred_at,
+  transfer_note`;
 
 function newId(): string {
   return `LD-${Date.now().toString(36).toUpperCase().slice(-5)}${Math.random()

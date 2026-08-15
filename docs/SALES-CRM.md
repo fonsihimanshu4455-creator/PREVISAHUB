@@ -217,6 +217,8 @@ signed-in user. Responsive from phone to desktop.
 | 7 | Lost leads need a reason | `repo.updateLead`, `calls.logCall` |
 | 8 | Converted leads record payment | `invoices.createInvoice` |
 | 9 | Important changes are logged | `lead_activities`, append-only |
+| 10 | A caller may hand a lead back, but only upward and never silently | `POST /leads/[id]/transfer` — own lead only, note required, stored on `leads.transfer_note` |
+| 11 | Only a caller transfers; whoever can assign gives instead | `leads:assign` picks the button — an admin handing a lead "back to the admin" was handing it to themselves |
 
 ---
 

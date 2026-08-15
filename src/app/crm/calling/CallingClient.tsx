@@ -57,6 +57,11 @@ export default function CallingClient({
     me: string;
     counts: CallQueueCounts;
     canPickCaller?: boolean;
+    /** Whoever can hand leads out gives them to a person; everyone else can
+     *  only send one back up. The two are different moves, so they are
+     *  different buttons rather than one button that means two things. */
+    canAssign?: boolean;
+    team?: string[];
   };
 }) {
   const [tab, setTab] = useState<Tab>("tocall");
@@ -68,6 +73,9 @@ export default function CallingClient({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [doneCount, setDoneCount] = useState(0);
+  /** Who the admin has handed numbers to in this sitting, so the confirmation
+   *  is a running tally rather than a row silently vanishing. */
+  const [gave, setGave] = useState<Record<string, number>>({});
   /** Set when the reader arrived at the history from a figure on the scorecard.
    *  Kept beside the rows as a chip so it is never a mystery why the list is
    *  short, and removable in one click. */
@@ -171,15 +179,26 @@ export default function CallingClient({
     );
   }, []);
 
+  /** The reason is asked for instead of a yes/no, so the admin receives the
+   *  lead already knowing what to do with it. Cancel means cancel; an empty
+   *  box is not a transfer. */
   const transfer = useCallback(
     async (lead: Lead) => {
-      if (!window.confirm(`Send ${lead.name} back to the admin?`)) return;
+      const note = window.prompt(
+        `Send ${lead.name} back to the admin.\n\nWhy? (the admin will see this)`,
+        ""
+      );
+      if (note === null) return;
+      if (!note.trim()) {
+        setError("Say why you are sending this lead back — the admin needs the reason.");
+        return;
+      }
       setBusy(lead.id);
       setError("");
       const r = await fetch(`/api/crm/leads/${lead.id}/transfer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: "" }),
+        body: JSON.stringify({ note }),
       }).then((x) => x.json());
       setBusy(null);
       if (r.error) return setError(r.error);
@@ -187,6 +206,46 @@ export default function CallingClient({
       refreshCounts();
     },
     [refreshCounts]
+  );
+
+  /** The admin's move: give the number to a caller. The other direction from
+   *  transfer(), which is why it is a different button — an admin sending a
+   *  lead "back to the admin" was sending it to themselves. */
+  const giveTo = useCallback(
+    async (lead: Lead) => {
+      const team = initial.team ?? [];
+      if (team.length === 0) {
+        setError("Nobody to give this to yet — add a telecaller under Team first.");
+        return;
+      }
+      const who = window.prompt(
+        `Give ${lead.name} to which caller?\n\n${team
+          .map((n, i) => `${i + 1}. ${n}`)
+          .join("\n")}\n\nType the name or its number:`,
+        team.length === 1 ? team[0] : ""
+      );
+      if (who === null) return;
+      const picked =
+        team.find((n) => n.toLowerCase() === who.trim().toLowerCase()) ??
+        team[Number(who.trim()) - 1];
+      if (!picked) {
+        setError(`No caller called “${who.trim()}”. Pick one of: ${team.join(", ")}.`);
+        return;
+      }
+      setBusy(lead.id);
+      setError("");
+      const r = await fetch("/api/crm/leads/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [lead.id], owner: picked }),
+      }).then((x) => x.json());
+      setBusy(null);
+      if (r.error) return setError(r.error);
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      setGave((g) => ({ ...g, [picked]: (g[picked] ?? 0) + 1 }));
+      refreshCounts();
+    },
+    [initial.team, refreshCounts]
   );
 
   const row = (l: Lead) => (
@@ -208,6 +267,14 @@ export default function CallingClient({
               ? ` · ${dayLabel(l.transferredAt.slice(0, 10), today).toLowerCase()}`
               : ""}
           </div>
+        )}
+        {/* The reason, in the same amber as the line above it: this is what the
+            admin opened the list to read, so it sits with the transfer and not
+            down among the ordinary notes. */}
+        {l.transferNote && (
+          <p className="mt-1 whitespace-pre-line rounded-lg bg-[color:var(--warn-soft)] px-2.5 py-1.5 text-[12.5px] leading-snug text-[color:var(--warn)]">
+            “{l.transferNote}”
+          </p>
         )}
         {l.lastOutcome && (
           <div className="mt-0.5 text-[12px] text-[color:var(--text-faint)]">
@@ -243,14 +310,25 @@ export default function CallingClient({
       >
         Note
       </button>
-      <button
-        onClick={() => transfer(l)}
-        disabled={busy === l.id}
-        title="Hand this lead back to the admin"
-        className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
-      >
-        Transfer to admin
-      </button>
+      {initial.canAssign ? (
+        <button
+          onClick={() => giveTo(l)}
+          disabled={busy === l.id}
+          title="Give this number to a caller"
+          className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          Give to caller
+        </button>
+      ) : (
+        <button
+          onClick={() => transfer(l)}
+          disabled={busy === l.id}
+          title="Hand this lead back to the admin"
+          className="rounded-xl border border-line-strong px-3 py-2.5 text-[13px] font-semibold text-[color:var(--text-muted)] transition hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          Transfer to admin
+        </button>
+      )}
 
       {/* Under the buttons, on its own line: everything anyone has written
           about this person, oldest first. Full width because a note is a
@@ -312,6 +390,7 @@ export default function CallingClient({
         <p className="mt-1 text-[13.5px] text-[color:var(--text-muted)]">
           {initial.me} · {counts.tocall} to call today
           {doneCount > 0 && ` · ${doneCount} done`}
+          {Object.entries(gave).map(([who, n]) => ` · ${n} given to ${who}`)}
         </p>
       </div>
 
@@ -391,7 +470,7 @@ export default function CallingClient({
           <div className="space-y-2.5">
             <p className="text-[13px] text-[color:var(--text-muted)]">
               {initial.canPickCaller
-                ? "Sent back by a caller and not yet given to anyone. Assign them from Leads."
+                ? "Sent back by a caller and not yet given to anyone. Read the reason, then give each one to whoever should take it."
                 : "Sent back to the admin. They stay here until the admin gives them to someone."}
             </p>
             {leads.map(row)}

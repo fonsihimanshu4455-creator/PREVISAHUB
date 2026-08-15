@@ -4,7 +4,7 @@
 // should not have to know that there are two ways in, or get a different
 // screen depending on which one they used.
 
-import { crmSession } from "@/lib/leads/auth";
+import { assignableUsers, crmSession } from "@/lib/leads/auth";
 import { can } from "@/lib/leads/types";
 import { callQueueCounts, listLeads } from "@/lib/leads/repo";
 import CallingClient from "@/app/crm/calling/CallingClient";
@@ -17,8 +17,10 @@ export default async function CallingPage() {
   const user = await crmSession();
   if (!user) return <CallingLogin />;
 
+  const canAssign = can(user.role, "leads:assign");
+
   // Opens on what is due today; the other piles load when a tab is clicked.
-  const [{ leads, total }, counts] = await Promise.all([
+  const [{ leads, total }, counts, team] = await Promise.all([
     listLeads({
       owner: user.scope || undefined,
       bucket: "callable",
@@ -27,6 +29,7 @@ export default async function CallingPage() {
       limit: 300,
     }),
     callQueueCounts(user.scope || undefined),
+    canAssign ? assignableUsers() : Promise.resolve([]),
   ]);
 
   return (
@@ -39,6 +42,8 @@ export default async function CallingPage() {
             me: user.name,
             counts,
             canPickCaller: can(user.role, "leads:all"),
+            canAssign,
+            team: team.map((t) => t.name).filter((n) => n !== user.name),
           }} />
       </main>
     </div>

@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
  * do need a way to say "this one is not for me": someone who wants a
  * consultation, a wrong number that is really a live enquiry, an angry caller.
  * So this one move is allowed, and only this one: their own lead, back to
- * nobody, with a note on the timeline saying who sent it and why.
+ * nobody, and never without a reason — the note is required, stored on the
+ * lead so the admin reads it in the list, and copied onto the timeline.
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const user = await crmSession();
@@ -35,11 +36,20 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const note = String((await req.json().catch(() => ({})))?.note ?? "").trim();
+  // The reason is the whole point of the handover. Without it the admin gets a
+  // name and a number they have already seen, and has to ring the caller to
+  // find out what happened — so the transfer does not go through without one.
+  if (!note) {
+    return NextResponse.json(
+      { error: "Say why you are sending this lead back." },
+      { status: 400 }
+    );
+  }
 
   await sql`
     UPDATE leads
     SET owner = '', transferred_from = ${user.name}, transferred_at = now(),
-        updated_at = now()
+        transfer_note = ${note}, updated_at = now()
     WHERE id = ${params.id}
   `;
   await sql`

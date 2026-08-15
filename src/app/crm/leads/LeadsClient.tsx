@@ -10,6 +10,7 @@ import { useCrm } from "@/components/salescrm/Shell";
 import LeadForm from "@/components/salescrm/LeadForm";
 import EditLeadModal from "@/components/salescrm/EditLeadModal";
 import { ScorePill, StatusBadge, dueTone, statusChip } from "@/components/salescrm/ui";
+import { dayLabel } from "@/lib/leads/dates";
 import {
   DESTINATIONS, LEAD_SOURCES, LEAD_STATUSES, LOST_REASONS, Lead, PRIORITIES,
   REASON_REQUIRED, VISA_TYPES,
@@ -389,8 +390,11 @@ function LeadsInner({ initial }: { initial: { leads: Lead[]; total: number } }) 
                       <StatusBadge status={l.status} />
                     )}
                   </td>
-                  <td className={`px-3 py-2.5 tabular-nums ${dueTone(l.nextFollowUpDate, today)}`}>
-                    {l.nextFollowUpDate || "—"}
+                  {/* "Today", "Tomorrow", "Mon 18 Aug" — the same words the
+                      calling screen uses, so a date means one thing across the
+                      CRM and nobody has to work out what 2026-08-18 is. */}
+                  <td className={`whitespace-nowrap px-3 py-2.5 ${dueTone(l.nextFollowUpDate, today)}`}>
+                    {l.nextFollowUpDate ? dayLabel(l.nextFollowUpDate, today) : "—"}
                     {l.nextFollowUpTime ? ` ${l.nextFollowUpTime}` : ""}
                   </td>
                   <td className="px-3 py-2.5 text-[12.5px] text-[color:var(--text-muted)]">

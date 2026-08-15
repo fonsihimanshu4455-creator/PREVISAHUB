@@ -19,7 +19,7 @@ export const ensureLeadSchema = schemaGuard(
       "leads", "lead_calls", "lead_followups", "lead_appointments",
       "lead_invoices", "lead_activities",
     ],
-    columns: ["leads.city", "leads.transferred_from"],
+    columns: ["leads.city", "leads.transferred_from", "leads.transfer_note"],
     indexes: ["leads_phone10_uniq", "leads_follow_idx", "leads_status_idx"],
   },
   () => createLeadSchema()
@@ -73,6 +73,10 @@ async function createLeadSchema(): Promise<void> {
   // the activity log so both the caller and the admin can list them cheaply.
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS transferred_from text NOT NULL DEFAULT ''`;
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS transferred_at timestamptz`;
+  // Why it came back. On the lead, not only on the timeline, so the admin
+  // reads the reason in the list itself rather than opening every profile to
+  // find out which of twenty transfers is the urgent one.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS transfer_note text NOT NULL DEFAULT ''`;
 
   // The three ways the floor actually reads this table: my leads, the
   // follow-up queue, and the pipeline board.
