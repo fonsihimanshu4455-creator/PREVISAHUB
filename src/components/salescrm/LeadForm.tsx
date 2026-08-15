@@ -24,7 +24,7 @@ export default function LeadForm({
   const { user, permissions, team } = useCrm();
   const [f, setF] = useState<Record<string, string | boolean>>({
     name: "", phone: "", whatsapp: "", email: "", source: "Facebook",
-    residence: "India", language: "Punjabi", age: "", occupation: "",
+    city: "", residence: "India", language: "Punjabi", age: "", occupation: "",
     destination: "Canada", visaType: "Student", currentVisaStatus: "None",
     previousRefusal: false, travelHistory: "", education: "", workExperience: "",
     englishTest: "Not Started", budget: "", expectedApplication: "",
@@ -95,6 +95,10 @@ export default function LeadForm({
             <label>
               <span className={label}>Email</span>
               <input type="email" className={input} value={String(f.email)} onChange={(e) => set("email", e.target.value)} />
+            </label>
+            <label>
+              <span className={label}>City</span>
+              <input className={input} value={String(f.city)} onChange={(e) => set("city", e.target.value)} />
             </label>
             <label>
               <span className={label}>Country of residence</span>

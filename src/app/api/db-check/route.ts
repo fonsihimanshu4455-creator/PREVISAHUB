@@ -70,16 +70,20 @@ async function handle(req: Request) {
       : "This looks like a direct connection. Vercel cannot reach Supabase's direct host; copy the Transaction pooler URI instead (it contains 'pooler' and port 6543).",
   });
 
-  // 5 — can we actually talk to it?
+  // 5 — can we actually talk to it, and how far away is it?
   let canConnect = false;
   let connectError = "";
   let tablesExist = false;
   let studentCount: number | null = null;
+  let roundTripMs = 0;
 
   if (sql) {
     try {
-      await sql`SELECT 1`;
+      await sql`SELECT 1`; // connect first, so the timing below is not the handshake
       canConnect = true;
+      const started = Date.now();
+      for (let i = 0; i < 5; i++) await sql`SELECT 1`;
+      roundTripMs = Math.round((Date.now() - started) / 5);
     } catch (e) {
       connectError = String(e instanceof Error ? e.message : e);
     }
@@ -92,6 +96,25 @@ async function handle(req: Request) {
       ? "Connected successfully."
       : explainConnectError(connectError, info.pooled),
   });
+
+  // 6 — the thing that actually decides how fast every page feels.
+  //
+  // A page is a handful of queries, so the distance between the server and the
+  // database multiplies into every single load. Same region is a few
+  // milliseconds; different continents is a quarter of a second per query, and
+  // no amount of application tuning can hide that.
+  if (canConnect) {
+    checks.push({
+      label: "Database speed",
+      ok: roundTripMs < 80,
+      detail:
+        roundTripMs < 25
+          ? `${roundTripMs} ms per query — the database is next to the server. This is as good as it gets.`
+          : roundTripMs < 80
+          ? `${roundTripMs} ms per query — acceptable.`
+          : `${roundTripMs} ms per query, which is slow and is why pages feel slow. The server and the database are in different regions. Fix it in Vercel → Settings → Functions → Function Region, and pick the region closest to your Supabase project (Supabase → Settings → General shows it; for an India project that is usually Mumbai, ap-south-1).`,
+    });
+  }
 
   // 6 — tables created?
   if (canConnect && sql) {

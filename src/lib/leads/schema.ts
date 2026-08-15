@@ -19,6 +19,7 @@ export const ensureLeadSchema = schemaGuard(
       "leads", "lead_calls", "lead_followups", "lead_appointments",
       "lead_invoices", "lead_activities",
     ],
+    columns: ["leads.city"],
     indexes: ["leads_phone10_uniq", "leads_follow_idx", "leads_status_idx"],
   },
   () => createLeadSchema()
@@ -37,6 +38,7 @@ async function createLeadSchema(): Promise<void> {
       phone             text NOT NULL,
       whatsapp          text NOT NULL DEFAULT '',
       email             text NOT NULL DEFAULT '',
+      city              text NOT NULL DEFAULT '',
       residence         text NOT NULL DEFAULT '',
       language          text NOT NULL DEFAULT '',
       age               int,
@@ -64,6 +66,9 @@ async function createLeadSchema(): Promise<void> {
       handover_student_id text NOT NULL DEFAULT ''
     )
   `;
+
+  // Added after the table shipped, so existing installs pick it up too.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS city text NOT NULL DEFAULT ''`;
 
   // The three ways the floor actually reads this table: my leads, the
   // follow-up queue, and the pipeline board.

@@ -16,6 +16,7 @@ export const adminNav: AdminNavItem[] = [
   { href: "/crm", label: "Sales CRM", icon: "phone", desc: "Leads, calling, follow-ups & conversions", group: "Sales" },
   { href: "/crm/calling", label: "Call Queue", icon: "phone", desc: "Overdue, due today & never called", group: "Sales" },
   { href: "/crm/pipeline", label: "Sales Pipeline", icon: "grid", desc: "Drag leads through the funnel", group: "Sales" },
+  { href: "/crm/import", label: "Import Leads Sheet", icon: "import", desc: "Old database — columns detected automatically", group: "Sales" },
   { href: "/crm/reports", label: "Sales Reports", icon: "dashboard", desc: "Calling, conversion & employee KPIs", group: "Sales" },
 
   // Day-to-day work

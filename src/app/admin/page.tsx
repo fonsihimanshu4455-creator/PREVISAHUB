@@ -233,6 +233,8 @@ export default function AdminDashboard() {
         </div>
       </section>
 
+      <SpeedCheck />
+
       {/* Backup */}
       <section className="panel px-5 py-4">
         <h2 className="font-display text-[15px] font-bold">Backup &amp; restore</h2>
@@ -275,4 +277,85 @@ function greeting(): string {
   if (h < 12) return "Good morning";
   if (h < 17) return "Good afternoon";
   return "Good evening";
+}
+
+/**
+ * "Why is it slow?" answered with a number instead of a guess.
+ *
+ * Almost all of the perceived speed of this panel is the distance between the
+ * server and the database, because every page is several queries and that
+ * distance multiplies into all of them. Nothing in the application can hide a
+ * quarter-second round trip, so the owner needs to be able to see it — and be
+ * told the one setting that fixes it.
+ */
+function SpeedCheck() {
+  const [result, setResult] = useState<{
+    ok: boolean;
+    checks: { label: string; ok: boolean; detail: string }[];
+    next: string;
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [pageMs, setPageMs] = useState<number | null>(null);
+
+  async function run() {
+    setBusy(true);
+    try {
+      // What the browser actually waits for, measured from the browser —
+      // server time plus the network, which is what "slow" means to a person.
+      const started = performance.now();
+      const r = await fetch("/api/db-check").then((x) => x.json());
+      setPageMs(Math.round(performance.now() - started));
+      setResult(r);
+    } catch (e) {
+      setResult({
+        ok: false,
+        checks: [{ label: "Could not run the check", ok: false, detail: String(e) }],
+        next: "Try again in a moment.",
+      });
+    }
+    setBusy(false);
+  }
+
+  return (
+    <section className="panel px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display text-[15px] font-bold">Connection &amp; speed</h2>
+          <p className="mt-1 text-[13px] text-[color:var(--text-muted)]">
+            If pages feel slow, run this — it measures how long the database
+            takes to answer and says what to change.
+          </p>
+        </div>
+        <button
+          onClick={run}
+          disabled={busy}
+          className="rounded-xl bg-[color:var(--ink-800)] px-4 py-2 text-[13px] font-semibold text-white transition hover:brightness-125 disabled:opacity-50"
+        >
+          {busy ? "Measuring…" : "Check speed"}
+        </button>
+      </div>
+
+      {result && (
+        <div className="mt-3 space-y-1.5 rounded-xl bg-surface-sunk p-3">
+          {pageMs !== null && (
+            <div className="text-[13px]">
+              <span className="font-semibold">Round trip from your browser:</span>{" "}
+              <span className="tabular-nums">{pageMs} ms</span>
+            </div>
+          )}
+          {result.checks.map((c) => (
+            <div key={c.label} className="flex gap-2 text-[12.5px]">
+              <span className={c.ok ? "text-[color:var(--good)]" : "text-[color:var(--crit)]"}>
+                {c.ok ? "✓" : "✕"}
+              </span>
+              <span>
+                <span className="font-semibold">{c.label}</span>
+                <span className="text-[color:var(--text-muted)]"> — {c.detail}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }

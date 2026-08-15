@@ -44,7 +44,7 @@ const FIELD_ALIASES: Record<string, string[]> = {
   notes: ["notes", "note", "remark", "remarks", "comment", "comments"],
 };
 
-function normaliseHeader(h: string): string {
+export function normaliseHeader(h: string): string {
   return h.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
@@ -57,8 +57,9 @@ function fieldFor(header: string): string | null {
   return null;
 }
 
-/** Best-effort match of a free-text value onto one of a fixed set. */
-function matchOption<T extends string>(value: string, options: readonly T[]): T | null {
+/** Best-effort match of a free-text value onto one of a fixed set. Shared
+ * with the lead importer — people's spreadsheets are equally untidy there. */
+export function matchOption<T extends string>(value: string, options: readonly T[]): T | null {
   const v = normaliseHeader(value);
   if (!v) return null;
   for (const o of options) if (normaliseHeader(o) === v) return o;
@@ -98,7 +99,7 @@ function splitCsvLine(line: string): string[] {
   return out.map((s) => s.trim());
 }
 
-async function readGrid(buf: Buffer, filename: string): Promise<string[][]> {
+export async function readGrid(buf: Buffer, filename: string): Promise<string[][]> {
   if (/\.csv$/i.test(filename)) {
     const text = buf.toString("utf8").replace(/^﻿/, "");
     return text

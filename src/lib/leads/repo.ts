@@ -18,7 +18,7 @@ import {
 
 type Row = {
   id: string; created_at: Date; updated_at: Date; source: string; name: string;
-  phone: string; whatsapp: string; email: string; residence: string;
+  phone: string; whatsapp: string; email: string; city: string; residence: string;
   language: string; age: number | null; occupation: string; destination: string;
   visa_type: string; current_visa: string; previous_refusal: boolean;
   travel_history: string; education: string; work_experience: string;
@@ -39,6 +39,7 @@ function toLead(r: Row): Lead {
     phone: r.phone,
     whatsapp: r.whatsapp,
     email: r.email,
+    city: r.city,
     residence: r.residence,
     language: r.language,
     age: r.age,
@@ -68,7 +69,7 @@ function toLead(r: Row): Lead {
 }
 
 const COLUMNS = `id, created_at, updated_at, source, name, phone, whatsapp,
-  email, residence, language, age, occupation, destination, visa_type,
+  email, city, residence, language, age, occupation, destination, visa_type,
   current_visa, previous_refusal, travel_history, education, work_experience,
   english_test, budget, expected_application, owner, score, status, priority,
   next_follow_up_date, next_follow_up_time, last_contact_date, last_outcome,
@@ -223,14 +224,15 @@ export async function createLead(
 
   const [row] = await sql<Row[]>`
     INSERT INTO leads (
-      id, source, name, phone, whatsapp, email, residence, language, age,
+      id, source, name, phone, whatsapp, email, city, residence, language, age,
       occupation, destination, visa_type, current_visa, previous_refusal,
       travel_history, education, work_experience, english_test, budget,
       expected_application, owner, score, status, priority,
       next_follow_up_date, next_follow_up_time, notes
     ) VALUES (
       ${id}, ${draft.source}, ${draft.name.trim()}, ${draft.phone.trim()},
-      ${draft.whatsapp || draft.phone.trim()}, ${draft.email}, ${draft.residence},
+      ${draft.whatsapp || draft.phone.trim()}, ${draft.email}, ${draft.city},
+      ${draft.residence},
       ${draft.language}, ${draft.age}, ${draft.occupation}, ${draft.destination},
       ${draft.visaType}, ${draft.currentVisaStatus}, ${draft.previousRefusal},
       ${draft.travelHistory}, ${draft.education}, ${draft.workExperience},
@@ -265,7 +267,7 @@ export async function createLead(
 
 const FIELD_COLUMN: Record<string, string> = {
   source: "source", name: "name", phone: "phone", whatsapp: "whatsapp",
-  email: "email", residence: "residence", language: "language", age: "age",
+  email: "email", city: "city", residence: "residence", language: "language", age: "age",
   occupation: "occupation", destination: "destination", visaType: "visa_type",
   currentVisaStatus: "current_visa", previousRefusal: "previous_refusal",
   travelHistory: "travel_history", education: "education",

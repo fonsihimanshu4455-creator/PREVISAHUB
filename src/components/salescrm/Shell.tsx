@@ -51,6 +51,7 @@ const NAV: NavItem[] = [
   { href: "/crm/followups", label: "Follow-ups", show: () => true },
   { href: "/crm/pipeline", label: "Pipeline", show: () => true },
   { href: "/crm/appointments", label: "Appointments", show: (p) => p.canBook },
+  { href: "/crm/import", label: "Import Sheet", show: (p) => p.canAssign },
   { href: "/crm/sales", label: "Sales & Payments", show: (p) => p.seesMoney },
   { href: "/crm/reports", label: "Reports", show: (p) => p.seesReports },
   { href: "/crm/team", label: "Team", show: (p) => p.seesEveryone },

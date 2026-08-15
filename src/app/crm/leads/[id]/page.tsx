@@ -205,6 +205,7 @@ export default function LeadProfile({ params }: { params: { id: string } }) {
           {field("Source", l.source)}
           {field("Owner", l.owner)}
           {field("WhatsApp", l.whatsapp)}
+          {field("City", l.city)}
           {field("Residence", l.residence)}
           {field("Language", l.language)}
           {field("Age", l.age)}

@@ -357,6 +357,7 @@ export type Lead = {
   phone: string;
   whatsapp: string;
   email: string;
+  city: string;
   residence: string;
   language: string;
   age: number | null;
@@ -392,6 +393,7 @@ export const EMPTY_LEAD: Omit<Lead, "id" | "createdAt" | "updatedAt"> = {
   phone: "",
   whatsapp: "",
   email: "",
+  city: "",
   residence: "India",
   language: "Punjabi",
   age: null,
