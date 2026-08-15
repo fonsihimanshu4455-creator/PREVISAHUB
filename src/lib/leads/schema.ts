@@ -9,20 +9,20 @@
 // round trip, so it runs once per server instance rather than per request.
 // ---------------------------------------------------------------------------
 
-import { sql } from "../db";
+import { schemaGuard, sql } from "../db";
 
-let ready: Promise<void> | null = null;
-
-export function ensureLeadSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!ready) {
-    ready = createLeadSchema().catch((e) => {
-      ready = null; // let the next request retry rather than assume success
-      throw e;
-    });
-  }
-  return ready;
-}
+// One catalog query on a cold instance instead of twenty DDL round trips —
+// see the note on schemaGuard in db.ts.
+export const ensureLeadSchema = schemaGuard(
+  {
+    tables: [
+      "leads", "lead_calls", "lead_followups", "lead_appointments",
+      "lead_invoices", "lead_activities",
+    ],
+    indexes: ["leads_phone10_uniq", "leads_follow_idx", "leads_status_idx"],
+  },
+  () => createLeadSchema()
+);
 
 async function createLeadSchema(): Promise<void> {
   if (!sql) return;

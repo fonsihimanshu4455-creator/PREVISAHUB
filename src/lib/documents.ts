@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { randomBytes } from "crypto";
-import { sql, ensureSchema } from "./db";
+import { ensureSchema, schemaGuard, sql } from "./db";
 
 export const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -71,18 +71,8 @@ function toMeta(r: DocRow): DocumentMeta {
   };
 }
 
-let docsReady: Promise<void> | null = null;
-
-export function ensureDocumentsSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!docsReady) {
-    docsReady = createDocumentsSchema().catch((e) => {
-      docsReady = null;
-      throw e;
-    });
-  }
-  return docsReady;
-}
+// One catalog check on a cold instance rather than the DDL — see schemaGuard.
+export const ensureDocumentsSchema = schemaGuard({ tables: ["documents"] }, () => createDocumentsSchema());
 
 async function createDocumentsSchema(): Promise<void> {
   if (!sql) return;

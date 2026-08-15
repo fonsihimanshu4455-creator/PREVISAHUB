@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { randomBytes } from "crypto";
-import { sql, ensureSchema } from "./db";
+import { ensureSchema, schemaGuard, sql } from "./db";
 
 export type CallOutcome =
   | "Connected"
@@ -61,18 +61,8 @@ export type CallTarget = {
   callbackOn: string;
 };
 
-let callingReady: Promise<void> | null = null;
-
-export function ensureCallingSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!callingReady) {
-    callingReady = createCallingSchema().catch((e) => {
-      callingReady = null;
-      throw e;
-    });
-  }
-  return callingReady;
-}
+// One catalog check on a cold instance rather than the DDL — see schemaGuard.
+export const ensureCallingSchema = schemaGuard({ tables: ["call_logs"] }, () => createCallingSchema());
 
 async function createCallingSchema(): Promise<void> {
   if (!sql) return;

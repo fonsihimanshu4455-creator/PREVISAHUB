@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { randomBytes } from "crypto";
-import { sql, ensureSchema } from "./db";
+import { ensureSchema, schemaGuard, sql } from "./db";
 
 export type PaymentMethod = "Cash" | "UPI" | "Bank Transfer" | "Card" | "Cheque";
 export const PAYMENT_METHODS: PaymentMethod[] = [
@@ -70,18 +70,11 @@ function toPayment(r: PaymentRow): Payment {
   };
 }
 
-let paymentsReady: Promise<void> | null = null;
-
-export function ensurePaymentsSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!paymentsReady) {
-    paymentsReady = createPaymentsSchema().catch((e) => {
-      paymentsReady = null;
-      throw e;
-    });
-  }
-  return paymentsReady;
-}
+// One catalog check on a cold instance rather than the DDL — see schemaGuard.
+export const ensurePaymentsSchema = schemaGuard(
+  { tables: ["payments"], columns: ["students.total_fee"] },
+  () => createPaymentsSchema()
+);
 
 async function createPaymentsSchema(): Promise<void> {
   if (!sql) return;

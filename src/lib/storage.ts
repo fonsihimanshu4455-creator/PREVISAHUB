@@ -113,20 +113,37 @@ export async function writeContent(content: SiteContent): Promise<void> {
 }
 
 // ---- Password ------------------------------------------------------------
+// Every authenticated request checks the cookie against this password, so
+// reading it from storage each time put a database round trip in front of
+// literally every page and API call. It changes about once a year, so it is
+// held briefly in memory instead.
+//
+// The cost of the cache is that changing the password can take up to
+// PASSWORD_TTL to lock out sessions held on *other* server instances; the
+// instance that made the change drops its own copy immediately.
+const PASSWORD_TTL = 30_000;
+let passwordCache: { value: string; at: number } | null = null;
+
 export async function getAdminPassword(): Promise<string> {
+  if (passwordCache && Date.now() - passwordCache.at < PASSWORD_TTL) {
+    return passwordCache.value;
+  }
+  let value = process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
   if (storageConfigured()) {
     try {
       const stored = await get(KV_PASSWORD_KEY);
-      if (stored) return stored;
+      if (stored) value = stored;
     } catch {
       /* fall through to the env/default password */
     }
   }
-  return process.env.ADMIN_PASSWORD || DEFAULT_PASSWORD;
+  passwordCache = { value, at: Date.now() };
+  return value;
 }
 
 export async function setAdminPassword(password: string): Promise<boolean> {
   if (!storageConfigured()) return false;
   await set(KV_PASSWORD_KEY, password);
+  passwordCache = { value: password, at: Date.now() };
   return true;
 }

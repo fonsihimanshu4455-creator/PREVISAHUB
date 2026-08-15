@@ -10,7 +10,7 @@
 // ---------------------------------------------------------------------------
 
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from "crypto";
-import { sql, ensureSchema } from "./db";
+import { schemaGuard, sql, ensureSchema } from "./db";
 
 export const STAFF_COOKIE = "pvh_staff";
 
@@ -85,18 +85,11 @@ export function staffSessionToken(id: string, passwordHash: string): string {
 
 // --------------------------- schema ----------------------------------------
 
-let staffReady: Promise<void> | null = null;
-
-export function ensureStaffSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!staffReady) {
-    staffReady = createStaffSchema().catch((e) => {
-      staffReady = null;
-      throw e;
-    });
-  }
-  return staffReady;
-}
+// One catalog query on a cold instance rather than the DDL — see schemaGuard.
+export const ensureStaffSchema = schemaGuard(
+  { tables: ["staff"], columns: ["staff.role", "staff.crm_role"] },
+  () => createStaffSchema()
+);
 
 async function createStaffSchema(): Promise<void> {
   if (!sql) return;
@@ -110,8 +103,14 @@ async function createStaffSchema(): Promise<void> {
       created_at    timestamptz NOT NULL DEFAULT now()
     )
   `;
-  // Added after the table shipped, so existing installs pick it up too.
+  // Added after the table shipped, so existing installs pick them up too.
   await sql`ALTER TABLE staff ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'counsellor'`;
+  // The sales CRM's own role, alongside the older counsellor/telecaller one.
+  // Existing accounts are already selling, so that is the sensible default.
+  await sql`
+    ALTER TABLE staff ADD COLUMN IF NOT EXISTS crm_role text
+    NOT NULL DEFAULT 'sales_executive'
+  `;
 }
 
 // --------------------------- queries ---------------------------------------

@@ -21,26 +21,11 @@ export type CrmUser = {
   scope: string;
 };
 
-/** Add the CRM role column to the existing staff table. Idempotent. */
-let roleColumnReady: Promise<void> | null = null;
-export function ensureCrmRoles(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!roleColumnReady) {
-    roleColumnReady = (async () => {
-      await ensureStaffSchema();
-      // Existing counsellors and telecallers are selling, so that is the
-      // sensible default for accounts that predate this column.
-      await sql!`
-        ALTER TABLE staff ADD COLUMN IF NOT EXISTS crm_role text
-        NOT NULL DEFAULT 'sales_executive'
-      `;
-    })().catch((e) => {
-      roleColumnReady = null;
-      throw e;
-    });
-  }
-  return roleColumnReady;
-}
+/**
+ * The crm_role column is created with the rest of the staff table, so this is
+ * just that guard under a name the CRM's own code reads better with.
+ */
+export const ensureCrmRoles = ensureStaffSchema;
 
 export async function crmSession(): Promise<CrmUser | null> {
   const s = await getSession();

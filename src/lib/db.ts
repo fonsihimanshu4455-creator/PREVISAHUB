@@ -65,7 +65,11 @@ const cfg = parseDbUrl(raw);
 // as "prepared statement ... already exists" under load.
 export const sql = cfg
   ? postgres(cfg.clean, {
-      max: 3,
+      // The dashboard fires a dozen independent counts at once. At max: 3 they
+      // queued into five waves, and on a hosted database each wave is a full
+      // round trip of waiting — so the pool is wide enough to actually run
+      // them together.
+      max: 12,
       idle_timeout: 20,
       prepare: !cfg.pooled,
       ssl: cfg.noSsl ? false : "require",
@@ -122,22 +126,87 @@ export function describeConnection() {
 
 // --------------------------- schema + seed ---------------------------------
 
-// Schema setup is idempotent but not free: each CREATE/ALTER is a network
-// round-trip to the database. Running it per request added ~20 hops to every
-// page load, so it is memoised — one run per server instance. A failure clears
-// the cache so the next request retries rather than assuming success.
-let schemaReady: Promise<void> | null = null;
+// ---------------------------------------------------------------------------
+// Schema setup is idempotent but not free. Each CREATE/ALTER is a round trip,
+// and on a hosted database those cost 30–60 ms each — so the twenty statements
+// that make up the schema were a full second of latency on the first request
+// every serverless instance ever served, before it did any real work.
+//
+// Memoising fixed the second request; it could not fix the first, because a
+// cold instance has no memory. So `ensureTables` first asks the catalog, in
+// ONE query, whether everything already exists — which it does on all but the
+// very first deploy — and only falls through to the DDL when something is
+// genuinely missing.
+// ---------------------------------------------------------------------------
 
-export function ensureSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!schemaReady) {
-    schemaReady = createSchema().catch((e) => {
-      schemaReady = null;
-      throw e;
-    });
-  }
-  return schemaReady;
+export type SchemaShape = {
+  tables: string[];
+  /** "table.column" — for columns added by later migrations. */
+  columns?: string[];
+  indexes?: string[];
+};
+
+/** Is every table, column and index in `want` already there? One round trip. */
+async function schemaPresent(want: SchemaShape): Promise<boolean> {
+  if (!sql) return true;
+  const columns = want.columns ?? [];
+  const indexes = want.indexes ?? [];
+  // Every identifier is cast to text: these catalog columns are `name` and
+  // `sql_identifier`, which have no equality operator against a text[], so
+  // without the cast the comparison quietly matches nothing and the guard
+  // decides the schema is missing on every single cold start.
+  const [row] = await sql<{ t: string; c: string; i: string }[]>`
+    SELECT
+      (SELECT count(*) FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name::text = ANY(${want.tables})) AS t,
+      (SELECT count(*) FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND (table_name::text || '.' || column_name::text) = ANY(${columns})) AS c,
+      (SELECT count(*) FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname::text = ANY(${indexes})) AS i
+  `;
+  return (
+    Number(row?.t ?? 0) >= want.tables.length &&
+    Number(row?.c ?? 0) >= columns.length &&
+    Number(row?.i ?? 0) >= indexes.length
+  );
 }
+
+/**
+ * Build a memoised "make sure the schema is there" function: one catalog check
+ * on a cold instance, nothing at all once warm, and the full DDL only when
+ * something is actually missing. A failure clears the memo so the next request
+ * retries rather than assuming success.
+ */
+export function schemaGuard(
+  want: SchemaShape,
+  create: () => Promise<void>
+): () => Promise<void> {
+  let ready: Promise<void> | null = null;
+  return () => {
+    if (!sql) return Promise.resolve();
+    if (!ready) {
+      ready = (async () => {
+        if (await schemaPresent(want)) return;
+        await create();
+      })().catch((e) => {
+        ready = null;
+        throw e;
+      });
+    }
+    return ready;
+  };
+}
+
+export const ensureSchema = schemaGuard(
+  {
+    tables: ["students", "tasks"],
+    columns: ["students.telecaller"],
+    indexes: ["students_counsellor_idx"],
+  },
+  () => createSchema()
+);
 
 async function createSchema(): Promise<void> {
   if (!sql) return;
@@ -454,18 +523,10 @@ export async function setTaskDone(
 // Postgres is already connected for the CRM, so it can hold them too — that
 // way a working setup needs one database, not two.
 
-let settingsReady: Promise<void> | null = null;
-
-function ensureSettingsSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!settingsReady) {
-    settingsReady = createSettingsSchema().catch((e) => {
-      settingsReady = null;
-      throw e;
-    });
-  }
-  return settingsReady;
-}
+const ensureSettingsSchema = schemaGuard(
+  { tables: ["site_settings"] },
+  () => createSettingsSchema()
+);
 
 async function createSettingsSchema(): Promise<void> {
   if (!sql) return;

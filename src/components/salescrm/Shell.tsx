@@ -56,9 +56,19 @@ const NAV: NavItem[] = [
   { href: "/crm/team", label: "Team", show: (p) => p.seesEveryone },
 ];
 
-export default function Shell({ children }: { children: React.ReactNode }) {
-  const [me, setMe] = useState<CrmMe | null>(null);
-  const [ready, setReady] = useState(false);
+/**
+ * `initial` comes from the server on the very first render, so the shell never
+ * has to ask who is signed in before it can paint. It only re-fetches after a
+ * login, when the answer has genuinely changed.
+ */
+export default function Shell({
+  initial,
+  children,
+}: {
+  initial: CrmMe | null;
+  children: React.ReactNode;
+}) {
+  const [me, setMe] = useState<CrmMe | null>(initial);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const path = usePathname();
@@ -68,20 +78,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     fetch("/api/crm/session")
       .then((r) => r.json())
       .then((d) => setMe(d?.user ? (d as CrmMe) : null))
-      .catch(() => setMe(null))
-      .finally(() => setReady(true));
+      .catch(() => setMe(null));
   }, []);
 
-  useEffect(load, [load]);
   useEffect(() => setOpen(false), [path]);
-
-  if (!ready) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-surface-sunk text-[color:var(--text-faint)]">
-        Loading…
-      </div>
-    );
-  }
 
   if (!me) {
     return (

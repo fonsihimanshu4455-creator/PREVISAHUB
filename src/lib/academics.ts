@@ -8,7 +8,7 @@
 // ---------------------------------------------------------------------------
 
 import { randomBytes } from "crypto";
-import { sql, ensureSchema } from "./db";
+import { ensureSchema, schemaGuard, sql } from "./db";
 
 export type ExamKind = "PTE" | "IELTS";
 export const EXAM_KINDS: ExamKind[] = ["PTE", "IELTS"];
@@ -69,18 +69,8 @@ export function defaultMax(exam: ExamKind): number {
 
 // --------------------------- schema ----------------------------------------
 
-let academicsReady: Promise<void> | null = null;
-
-export function ensureAcademicsSchema(): Promise<void> {
-  if (!sql) return Promise.resolve();
-  if (!academicsReady) {
-    academicsReady = createAcademicsSchema().catch((e) => {
-      academicsReady = null;
-      throw e;
-    });
-  }
-  return academicsReady;
-}
+// One catalog check on a cold instance rather than the DDL — see schemaGuard.
+export const ensureAcademicsSchema = schemaGuard({ tables: ["test_records", "attendance"] }, () => createAcademicsSchema());
 
 async function createAcademicsSchema(): Promise<void> {
   if (!sql) return;
