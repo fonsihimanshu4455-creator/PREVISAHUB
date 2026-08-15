@@ -27,6 +27,7 @@ type Row = {
   next_follow_up_date: string; next_follow_up_time: string;
   last_contact_date: string; last_outcome: string; lost_reason: string;
   notes: string; handover_student_id: string;
+  transferred_from: string; transferred_at: Date | null;
 };
 
 function toLead(r: Row): Lead {
@@ -65,6 +66,8 @@ function toLead(r: Row): Lead {
     lostReason: r.lost_reason,
     notes: r.notes,
     handoverStudentId: r.handover_student_id,
+    transferredFrom: r.transferred_from ?? "",
+    transferredAt: r.transferred_at ? new Date(r.transferred_at).toISOString() : "",
   };
 }
 
@@ -73,7 +76,7 @@ const COLUMNS = `id, created_at, updated_at, source, name, phone, whatsapp,
   current_visa, previous_refusal, travel_history, education, work_experience,
   english_test, budget, expected_application, owner, score, status, priority,
   next_follow_up_date, next_follow_up_time, last_contact_date, last_outcome,
-  lost_reason, notes, handover_student_id`;
+  lost_reason, notes, handover_student_id, transferred_from, transferred_at`;
 
 function newId(): string {
   return `LD-${Date.now().toString(36).toUpperCase().slice(-5)}${Math.random()
@@ -106,13 +109,16 @@ export type LeadQuery = {
   due?: string;
   /** "calling" orders by who is due first, then who has never been rung. */
   order?: string;
+  /** Leads this person handed back — their own record of what they sent. */
+  transferredFrom?: string;
   /**
    * The calling panel's four piles. Without this a caller who marked a number
    * "Call Later" would still be looking at it tomorrow, which makes the whole
    * dropdown pointless.
    *
-   *   tocall   — due today, overdue, or never rung and never dated
-   *   upcoming — dated for any day after today, grouped by that date on screen
+   *   tocall      — due today, overdue, or never rung and never dated
+   *   upcoming    — dated after today, grouped by that date on screen
+   *   transferred — handed back to the admin and not yet given to anyone
    *
    * Relative piles like "tomorrow" read well for a day and then lie: the lead
    * you set for tomorrow is in "to call" tomorrow, and "tomorrow" has become a
@@ -133,7 +139,7 @@ export async function listLeads(
   const {
     owner, q = "", status = "", bucket = "", source = "", destination = "",
     visaType = "", priority = "", due = "", from = "", to = "",
-    order = "", queue = "", limit = 100, offset = 0,
+    order = "", queue = "", transferredFrom = "", limit = 100, offset = 0,
   } = opts;
   const t = today();
   const tomorrow = addDays(t, 1);
@@ -174,6 +180,13 @@ export async function listLeads(
                OR (next_follow_up_date = '' AND last_contact_date = ''))`
         : queue === "upcoming"
         ? sql`next_follow_up_date > ${t}`
+        : queue === "transferred"
+        ? sql`transferred_from <> '' AND owner = ''`
+        : sql`TRUE`
+    }
+    AND ${
+      transferredFrom
+        ? sql`lower(transferred_from) = lower(${transferredFrom})`
         : sql`TRUE`
     }
     AND ${from ? sql`created_at >= ${from}::date` : sql`TRUE`}
@@ -506,10 +519,11 @@ export type CallQueueCounts = {
   tocall: number;
   upcoming: number;
   called: number;
+  transferred: number;
 };
 
 export async function callQueueCounts(owner?: string): Promise<CallQueueCounts> {
-  const empty = { tocall: 0, upcoming: 0, called: 0 };
+  const empty = { tocall: 0, upcoming: 0, called: 0, transferred: 0 };
   if (!sql) return empty;
   await ensureLeadSchema();
   const t = today();
@@ -519,7 +533,14 @@ export async function callQueueCounts(owner?: string): Promise<CallQueueCounts> 
       COUNT(*) FILTER (WHERE (next_follow_up_date <> '' AND next_follow_up_date <= ${t})
                           OR (next_follow_up_date = '' AND last_contact_date = '')) AS tocall,
       COUNT(*) FILTER (WHERE next_follow_up_date > ${t})         AS upcoming,
-      COUNT(*) FILTER (WHERE last_contact_date <> '')            AS called
+      COUNT(*) FILTER (WHERE last_contact_date <> '')            AS called,
+      -- Counted separately because a transferred lead is no longer owned by
+      -- the person who sent it, so the scope above would never match it.
+      (SELECT COUNT(*) FROM leads WHERE ${
+        owner
+          ? sql`lower(transferred_from) = lower(${owner})`
+          : sql`transferred_from <> '' AND owner = ''`
+      }) AS transferred
     FROM leads
     WHERE ${scope} AND status <> ALL(${[...DEAD_STATUSES, WON_STATUS]})
   `;
@@ -527,5 +548,6 @@ export async function callQueueCounts(owner?: string): Promise<CallQueueCounts> 
     tocall: Number(r?.tocall ?? 0),
     upcoming: Number(r?.upcoming ?? 0),
     called: Number(r?.called ?? 0),
+    transferred: Number(r?.transferred ?? 0),
   };
 }

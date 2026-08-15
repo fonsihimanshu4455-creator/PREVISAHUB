@@ -24,7 +24,7 @@ import type { CallLog } from "@/lib/leads/calls";
 import type { CallQueueCounts } from "@/lib/leads/repo";
 import { Lead, SIMPLE_OUTCOMES } from "@/lib/leads/types";
 
-type Tab = "tocall" | "upcoming" | "called" | "calls";
+type Tab = "tocall" | "upcoming" | "transferred" | "called" | "calls";
 
 const DESCRIPTION: Record<string, string> = {
   "Call Later": "ring back in 3 days",
@@ -114,12 +114,15 @@ export default function CallingClient({
       setHistory(Array.isArray(r.calls) ? r.calls : []);
       return;
     }
-    const p = new URLSearchParams({
-      bucket: "callable",
-      queue: next,
-      order: "calling",
-      limit: "300",
-    });
+    const p = new URLSearchParams({ bucket: "callable", order: "calling", limit: "300" });
+    if (next === "transferred") {
+      // A caller wants the ones they sent back; the admin wants the ones
+      // waiting on them. Same tab, two different questions.
+      if (initial.canPickCaller) p.set("queue", "transferred");
+      else p.set("transferredFrom", initial.me);
+    } else {
+      p.set("queue", next);
+    }
     const r = await fetch(`/api/crm/leads?${p}`).then((x) => x.json());
     setLoading(false);
     if (r.error) return setError(r.error);
@@ -194,6 +197,14 @@ export default function CallingClient({
         <div className="select-all text-[15px] tabular-nums text-[color:var(--text-muted)]">
           {l.phone}
         </div>
+        {l.transferredFrom && (
+          <div className="mt-0.5 text-[12px] font-semibold text-[color:var(--warn)]">
+            Transferred by {l.transferredFrom}
+            {l.transferredAt
+              ? ` · ${dateHeading(l.transferredAt.slice(0, 10), todayIso).toLowerCase()}`
+              : ""}
+          </div>
+        )}
         {l.lastOutcome && (
           <div className="mt-0.5 text-[12px] text-[color:var(--text-faint)]">
             last: {l.lastOutcome}
@@ -201,12 +212,6 @@ export default function CallingClient({
               ? ` · ${dateHeading(l.lastContactDate, todayIso).toLowerCase()}`
               : ""}
           </div>
-        )}
-        {/* Everything anyone has written about this person, oldest first. */}
-        {l.notes && (
-          <p className="mt-1.5 whitespace-pre-line rounded-lg bg-surface-sunk px-2.5 py-1.5 text-[12.5px] leading-snug text-[color:var(--text-muted)]">
-            {l.notes}
-          </p>
         )}
       </div>
 
@@ -251,6 +256,16 @@ export default function CallingClient({
       >
         Transfer to admin
       </button>
+
+      {/* Under the buttons, on its own line: everything anyone has written
+          about this person, oldest first. Full width because a note is a
+          sentence, not a label — squeezed beside the number it made every row
+          a different height and the text a column three words wide. */}
+      {l.notes && (
+        <p className="w-full whitespace-pre-line rounded-lg bg-surface-sunk px-3 py-2 text-[12.5px] leading-snug text-[color:var(--text-muted)]">
+          {l.notes}
+        </p>
+      )}
     </div>
   );
 
@@ -266,6 +281,11 @@ export default function CallingClient({
   const TABS: { key: Tab; label: string; count?: number }[] = [
     { key: "tocall", label: "To call", count: counts.tocall },
     { key: "upcoming", label: "Upcoming", count: counts.upcoming },
+    {
+      key: "transferred",
+      label: initial.canPickCaller ? "Transferred in" : "I transferred",
+      count: counts.transferred,
+    },
     { key: "called", label: "Call history", count: counts.called },
     { key: "calls", label: "My calls" },
   ];
@@ -335,6 +355,26 @@ export default function CallingClient({
           </div>
         ) : (
           <div className="space-y-2.5">{leads.map(row)}</div>
+        ))}
+
+      {/* Handed back: what the caller sent up, or what is waiting on the admin. */}
+      {!loading &&
+        tab === "transferred" &&
+        (leads.length === 0 ? (
+          <div className="panel p-12 text-center text-[13.5px] text-[color:var(--text-muted)]">
+            {initial.canPickCaller
+              ? "Nobody has sent anything back."
+              : "You have not sent anything back to the admin."}
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            <p className="text-[13px] text-[color:var(--text-muted)]">
+              {initial.canPickCaller
+                ? "Sent back by a caller and not yet given to anyone. Assign them from Leads."
+                : "Sent back to the admin. They stay here until the admin gives them to someone."}
+            </p>
+            {leads.map(row)}
+          </div>
         ))}
 
       {/* Booked ahead — under the date they are actually booked for. */}

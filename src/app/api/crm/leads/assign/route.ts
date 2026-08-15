@@ -80,7 +80,11 @@ export async function POST(req: Request) {
     // Only the fields actually being changed are written, so assigning an
     // owner cannot quietly reset a status somebody set by hand.
     const changes: Record<string, unknown> = { updated_at: new Date() };
-    if (owner) changes.owner = owner;
+    if (owner) {
+      changes.owner = owner;
+      // It is somebody's again, so it leaves the admin's transferred pile.
+      changes.transferred_from = "";
+    }
     if (status) changes.status = status;
 
     const updated = await sql<{ id: string }[]>`

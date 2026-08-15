@@ -37,7 +37,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const note = String((await req.json().catch(() => ({})))?.note ?? "").trim();
 
   await sql`
-    UPDATE leads SET owner = '', updated_at = now() WHERE id = ${params.id}
+    UPDATE leads
+    SET owner = '', transferred_from = ${user.name}, transferred_at = now(),
+        updated_at = now()
+    WHERE id = ${params.id}
   `;
   await sql`
     UPDATE lead_followups SET owner = '' WHERE lead_id = ${params.id} AND status = 'Open'

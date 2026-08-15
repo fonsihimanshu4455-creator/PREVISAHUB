@@ -11,11 +11,22 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: user.error }, { status: user.status });
   }
   const p = new URL(req.url).searchParams;
+  // A caller can only ask for leads THEY handed back, never anyone else's.
+  const transferredFrom = user.scope
+    ? p.get("transferredFrom")
+      ? user.scope
+      : ""
+    : p.get("transferredFrom") ?? "";
+  // Those leads are no longer theirs — transfer clears the owner — so the
+  // usual "only your own" filter would hide the very rows being asked for.
+  // Having sent it is itself the proof it was theirs.
+  const scopeOwner = transferredFrom ? undefined : user.scope || undefined;
+
   try {
     const { leads, total } = await listLeads({
       // A sales executive sees their own book and nothing else, whatever the
       // query string says.
-      owner: user.scope || undefined,
+      owner: scopeOwner,
       q: p.get("q") ?? "",
       status: p.get("status") ?? "",
       bucket: p.get("bucket") ?? "",
@@ -25,6 +36,7 @@ export async function GET(req: Request) {
       priority: p.get("priority") ?? "",
       due: p.get("due") ?? "",
       queue: p.get("queue") ?? "",
+      transferredFrom,
       order: p.get("order") ?? "",
       from: p.get("from") ?? "",
       to: p.get("to") ?? "",

@@ -427,6 +427,9 @@ export type Lead = {
   notes: string;
   /** Set once the lead converts and case management takes over. */
   handoverStudentId: string;
+  /** The caller who handed this lead back to the admin, if anyone did. */
+  transferredFrom: string;
+  transferredAt: string;
   updatedAt: string;
 };
 
@@ -462,4 +465,6 @@ export const EMPTY_LEAD: Omit<Lead, "id" | "createdAt" | "updatedAt"> = {
   lostReason: "",
   notes: "",
   handoverStudentId: "",
+  transferredFrom: "",
+  transferredAt: "",
 };

@@ -19,7 +19,7 @@ export const ensureLeadSchema = schemaGuard(
       "leads", "lead_calls", "lead_followups", "lead_appointments",
       "lead_invoices", "lead_activities",
     ],
-    columns: ["leads.city"],
+    columns: ["leads.city", "leads.transferred_from"],
     indexes: ["leads_phone10_uniq", "leads_follow_idx", "leads_status_idx"],
   },
   () => createLeadSchema()
@@ -67,8 +67,12 @@ async function createLeadSchema(): Promise<void> {
     )
   `;
 
-  // Added after the table shipped, so existing installs pick it up too.
+  // Added after the table shipped, so existing installs pick them up too.
   await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS city text NOT NULL DEFAULT ''`;
+  // Who handed this lead back, and when. Kept on the lead rather than only in
+  // the activity log so both the caller and the admin can list them cheaply.
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS transferred_from text NOT NULL DEFAULT ''`;
+  await sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS transferred_at timestamptz`;
 
   // The three ways the floor actually reads this table: my leads, the
   // follow-up queue, and the pipeline board.
