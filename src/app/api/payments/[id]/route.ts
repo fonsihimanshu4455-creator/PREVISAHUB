@@ -1,24 +1,17 @@
 import { NextResponse } from "next/server";
-import { requireCrmAccess } from "@/lib/authServer";
-import { deletePayment, paymentCounsellor } from "@/lib/payments";
+import { denyMoneyAccess } from "@/lib/authServer";
+import { deletePayment } from "@/lib/payments";
 
 export const dynamic = "force-dynamic";
 
+// Owner only — see denyMoneyAccess.
 export async function DELETE(
   _req: Request,
   { params }: { params: { id: string } }
 ) {
-  const session = await requireCrmAccess();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  if (session.role === "staff") {
-    const owner = await paymentCounsellor(params.id);
-    if (!owner || owner.toLowerCase() !== session.staff.name.toLowerCase()) {
-      return NextResponse.json(
-        { error: "This payment is not on one of your students." },
-        { status: 403 }
-      );
-    }
+  const denied = await denyMoneyAccess();
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
   }
 
   const ok = await deletePayment(params.id);

@@ -127,7 +127,9 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   }));
   const [searching, setSearching] = useState(false);
   const [telecallers, setTelecallers] = useState<string[]>([]);
-  const [role, setRole] = useState<"admin" | "staff">("admin");
+  // Null until the first response says who this is. Starting as "admin" would
+  // flash the Payments tab at a counsellor for a moment.
+  const [role, setRole] = useState<"admin" | "staff" | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -253,12 +255,12 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
   // dashboard is not held up by data it does not show.
   const [moneyLoaded, setMoneyLoaded] = useState(false);
   useEffect(() => {
-    if (view === "payments" && !moneyLoaded) {
+    if (view === "payments" && role === "admin" && !moneyLoaded) {
       setMoneyLoaded(true);
       loadMoney();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, moneyLoaded]);
+  }, [view, role, moneyLoaded]);
 
   const pendingTasks = tasks.filter((t) => !t.done && t.due <= TODAY).length;
 
@@ -272,12 +274,19 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
     setView("students");
   }
 
+  // Money is the owner's alone. The API refuses staff outright; this only
+  // keeps a tab they cannot use off their screen.
+  const seesMoney = role === "admin";
+  useEffect(() => {
+    // …including when they arrive on ?tab=payments by typing the URL.
+    if (role && role !== "admin" && view === "payments") setView("dashboard");
+  }, [role, view]);
   const tabs: { key: View; label: string; badge?: number }[] = [
     { key: "dashboard", label: "Dashboard" },
     { key: "students", label: "Students" },
     { key: "pipeline", label: "Visa Pipeline" },
     { key: "tasks", label: "Daily Tasks", badge: pendingTasks },
-    { key: "payments", label: "Payments" },
+    ...(seesMoney ? [{ key: "payments" as View, label: "Payments" }] : []),
     { key: "tests", label: "Tests" },
     { key: "attendance", label: "Attendance" },
     { key: "documents", label: "Documents" },
@@ -351,8 +360,8 @@ export default function CrmBoard({ showHeader = true }: { showHeader?: boolean }
       {view === "tests" && <Tests students={students} />}
       {view === "attendance" && <Attendance students={students} />}
       {view === "documents" && <Documents students={students} />}
-      {view === "calling" && <CallingPanel isAdmin />}
-      {view === "payments" && (
+      {view === "calling" && <CallingPanel isAdmin={role === "admin"} />}
+      {view === "payments" && seesMoney && (
         <Payments
           students={students}
           fees={fees}

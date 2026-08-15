@@ -45,3 +45,23 @@ export async function requireCrmAccess(): Promise<Session | null> {
   const s = await getSession();
   return s.role === "none" ? null : s;
 }
+
+/**
+ * Fees, payments and totals are the owner's business. Counsellors and
+ * telecallers get the whole CRM without ever seeing what a student paid or
+ * what the office has collected — so this is enforced here, on the server,
+ * rather than by hiding a tab on their screen.
+ *
+ * Returns null when the request may see money, or the response to send back.
+ */
+export async function denyMoneyAccess(): Promise<
+  { status: number; error: string } | null
+> {
+  const s = await getSession();
+  if (s.role === "admin") return null;
+  if (s.role === "none") return { status: 401, error: "unauthorized" };
+  return {
+    status: 403,
+    error: "Payment details are only on the owner's account.",
+  };
+}

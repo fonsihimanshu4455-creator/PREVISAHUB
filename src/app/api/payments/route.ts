@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
-import { requireCrmAccess } from "@/lib/authServer";
+import { denyMoneyAccess } from "@/lib/authServer";
 import { addPayment, listPayments, PAYMENT_METHODS, PAYMENT_PURPOSES, setStudentFee } from "@/lib/payments";
-import { studentBelongsTo } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+// Reading and recording money is owner only — see denyMoneyAccess.
 export async function GET() {
-  const session = await requireCrmAccess();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const denied = await denyMoneyAccess();
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
+  }
   try {
-    const payments = await listPayments(
-      session.role === "staff" ? session.staff.name : undefined
-    );
-    return NextResponse.json({ role: session.role, payments });
+    const payments = await listPayments();
+    return NextResponse.json({ role: "admin", payments });
   } catch (e) {
     return NextResponse.json(
       { error: "Failed to load payments", detail: String(e) },
@@ -22,22 +22,15 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const session = await requireCrmAccess();
-  if (!session) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const denied = await denyMoneyAccess();
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
+  }
   try {
     const body = await req.json();
     const studentId = String(body.studentId ?? "");
     if (!studentId) {
       return NextResponse.json({ error: "Pick a student first." }, { status: 400 });
-    }
-    if (
-      session.role === "staff" &&
-      !(await studentBelongsTo(studentId, session.staff.name))
-    ) {
-      return NextResponse.json(
-        { error: "This student is not assigned to you." },
-        { status: 403 }
-      );
     }
 
     // Setting the agreed fee comes through the same endpoint.

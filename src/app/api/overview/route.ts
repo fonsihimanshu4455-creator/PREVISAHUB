@@ -16,8 +16,13 @@ export async function GET() {
   try {
     const scope = session.role === "staff" ? session.staff.name : undefined;
     // One request for the whole dashboard — it used to also pull the full
-    // sales report just to read two numbers off it.
-    const [data, money] = await Promise.all([overview(scope), moneyTotals(scope)]);
+    // sales report just to read two numbers off it. Staff get the counts
+    // without the money: collected and pending are never put in the response
+    // at all, rather than sent and hidden.
+    const [data, money] = await Promise.all([
+      overview(scope),
+      session.role === "admin" ? moneyTotals() : Promise.resolve({}),
+    ]);
     return NextResponse.json({ role: session.role, ...data, ...money });
   } catch (e) {
     return NextResponse.json(
